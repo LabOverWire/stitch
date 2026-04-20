@@ -16,5 +16,5 @@ export function stripNulls(obj: Record<string, unknown>): Record<string, unknown
 
 export function isTransientSyncError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
-  return /timeout|disconnected/i.test(err.message);
+  return /timeout|disconnected|foreign key violation/i.test(err.message);
 }

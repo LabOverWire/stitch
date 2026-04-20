@@ -276,9 +276,9 @@ export interface Store {
   listRootEntities(sort?: SortField[]): Promise<Record<string, unknown>[]>;
   getChildCount(entity: string, scopeId: string): Promise<number>;
 
-  create(entity: string, scopeId: string, data: Record<string, unknown>): Promise<string>;
-  update(entity: string, id: string, fields: Record<string, unknown>): Promise<void>;
-  delete(entity: string, id: string): Promise<void>;
+  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): Promise<string>;
+  update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): Promise<void>;
+  delete(entity: string, id: string, tag?: string): Promise<void>;
 
   subscribeToScope(scopeId: string, entity: string, callback: () => void): () => void;
   subscribeToEntity(entity: string, callback: () => void): () => void;

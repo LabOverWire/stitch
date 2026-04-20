@@ -50,6 +50,12 @@ class StoreImpl implements Store {
   private statusListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private currentScopeId: string | null = null;
   private initialSyncDone = false;
+  private _authenticatedUser: string | null = null;
+  private _earlySubscribers: Array<{
+    entity: string;
+    callback: (data: unknown, op: 'insert' | 'update' | 'delete') => void;
+    memoryUnsub: () => void;
+  }> = [];
 
   constructor(config: StoreConfig, options: StoreOptions) {
     this.config = config;
@@ -91,11 +97,21 @@ class StoreImpl implements Store {
       this.memory.onCorruption(() => {
         persistence.notifyCorruption();
       });
+
+      for (const entry of this._earlySubscribers) {
+        entry.memoryUnsub();
+        persistence.subscribe(entry.entity, entry.callback);
+      }
+      this._earlySubscribers = [];
     }
 
     if (this.options.remote) {
       const remote = createRemoteSyncLayer(this.config);
       this._remote = remote;
+
+      if (this._authenticatedUser) {
+        remote.setAuthenticatedUser(this._authenticatedUser);
+      }
 
       if (this._persistence) {
         const queue = createPersistentOfflineQueue(
@@ -103,6 +119,9 @@ class StoreImpl implements Store {
           this.config.scope.rootEntity
         );
         this._queue = queue;
+        if (this._authenticatedUser && 'setAuthenticatedUser' in queue) {
+          (queue as OfflineQueueExt).setAuthenticatedUser!(this._authenticatedUser);
+        }
       } else {
         this._queue = createInMemoryOfflineQueue(this.config.scope.rootEntity);
       }
@@ -202,13 +221,13 @@ class StoreImpl implements Store {
     return this.memory.list(entity, scopeId).length;
   }
 
-  async create(entity: string, scopeId: string, data: Record<string, unknown>): Promise<string> {
+  async create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): Promise<string> {
     const { rootEntity } = this.config.scope;
     const id = (data.id as string) || crypto.randomUUID();
     const record = stripNulls({ ...data, id });
     const effectiveScopeId = entity === rootEntity ? id : scopeId;
 
-    this.memory.create(entity, effectiveScopeId, record);
+    this.memory.create(entity, effectiveScopeId, record, tag);
 
     if (this._persistence) {
       try {
@@ -240,35 +259,42 @@ class StoreImpl implements Store {
     return id;
   }
 
-  async update(entity: string, id: string, fields: Record<string, unknown>): Promise<void> {
+  async update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): Promise<void> {
     const { rootEntity, scopeField } = this.config.scope;
 
+    const memExisting = this.memory.read(entity, id);
     let scopeId: string | undefined;
 
-    if (this._persistence) {
-      let existing: Record<string, unknown>;
-      try {
-        existing = await this._persistence.read(entity, id);
-      } catch (readErr) {
-        const msg = readErr instanceof Error ? readErr.message : String(readErr);
-        if (/not found/i.test(msg)) return;
-        throw readErr;
+    if (memExisting) {
+      scopeId = entity === rootEntity ? id : (memExisting[scopeField] as string | undefined);
+      if (scopeId) {
+        this.memory.update(entity, id, fields, tag);
       }
-      scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+    }
+
+    if (this._persistence) {
+      if (!scopeId) {
+        let existing: Record<string, unknown>;
+        try {
+          existing = await this._persistence.read(entity, id);
+        } catch (readErr) {
+          const msg = readErr instanceof Error ? readErr.message : String(readErr);
+          if (/not found/i.test(msg)) return;
+          throw readErr;
+        }
+        scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+        if (scopeId && !memExisting) {
+          this.memory.update(entity, id, fields, tag);
+        }
+      }
 
       try {
         await this._persistence.update(entity, id, fields);
       } catch (updErr) {
         console.error(`[Stitch] Persistence update ${entity} failed:`, updErr);
       }
-    } else {
-      const existing = this.memory.read(entity, id);
-      if (!existing) return;
-      scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
-    }
-
-    if (scopeId) {
-      this.memory.update(entity, id, fields);
+    } else if (!memExisting) {
+      return;
     }
 
     if (this._queue && scopeId) {
@@ -292,7 +318,6 @@ class StoreImpl implements Store {
             }
             this.memory.delete(rootEntity, id);
           } catch {
-            // already gone
           }
           await this._queue?.remove(entity, id, scopeId, 'update');
         } else if (isNotFound) {
@@ -320,21 +345,34 @@ class StoreImpl implements Store {
     }
   }
 
-  async delete(entity: string, id: string): Promise<void> {
+  async delete(entity: string, id: string, tag?: string): Promise<void> {
     const { rootEntity, scopeField } = this.config.scope;
 
+    const memExisting = this.memory.read(entity, id);
     let scopeId: string | undefined;
 
-    if (this._persistence) {
-      let existing: Record<string, unknown>;
-      try {
-        existing = await this._persistence.read(entity, id);
-      } catch (readErr) {
-        const msg = readErr instanceof Error ? readErr.message : String(readErr);
-        if (/not found/i.test(msg)) return;
-        throw readErr;
+    if (memExisting) {
+      scopeId = entity === rootEntity ? id : (memExisting[scopeField] as string | undefined);
+      if (scopeId) {
+        this.memory.delete(entity, id, tag);
       }
-      scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+    }
+
+    if (this._persistence) {
+      if (!scopeId) {
+        let existing: Record<string, unknown>;
+        try {
+          existing = await this._persistence.read(entity, id);
+        } catch (readErr) {
+          const msg = readErr instanceof Error ? readErr.message : String(readErr);
+          if (/not found/i.test(msg)) return;
+          throw readErr;
+        }
+        scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+        if (scopeId && !memExisting) {
+          this.memory.delete(entity, id, tag);
+        }
+      }
 
       try {
         await this._persistence.delete(entity, id);
@@ -343,14 +381,8 @@ class StoreImpl implements Store {
         if (/not found/i.test(msg)) return;
         console.error(`[Stitch] Persistence delete ${entity} failed:`, delErr);
       }
-    } else {
-      const existing = this.memory.read(entity, id);
-      if (!existing) return;
-      scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
-    }
-
-    if (scopeId) {
-      this.memory.delete(entity, id);
+    } else if (!memExisting) {
+      return;
     }
 
     if (this._queue && scopeId) {
@@ -394,11 +426,20 @@ class StoreImpl implements Store {
       return this._persistence.subscribe(entity, callback);
     }
 
-    return this.memory.onMutation((event) => {
+    const memUnsub = this.memory.onMutation((event) => {
       if (event.entity !== entity) return;
       const op = event.operation === 'create' ? 'insert' : event.operation;
       callback(event.data, op as 'insert' | 'update' | 'delete');
     });
+
+    const entry = { entity, callback, memoryUnsub: memUnsub };
+    this._earlySubscribers.push(entry);
+
+    return () => {
+      memUnsub();
+      const idx = this._earlySubscribers.indexOf(entry);
+      if (idx >= 0) this._earlySubscribers.splice(idx, 1);
+    };
   }
 
   beginBatch(): void {
@@ -410,9 +451,17 @@ class StoreImpl implements Store {
   }
 
   async openScope(scopeId: string): Promise<void> {
+    if (this.currentScopeId === scopeId) return;
+
     const { rootEntity, childEntities } = this.config.scope;
 
-    this.currentScopeId = scopeId;
+    if (this.currentScopeId && this.currentScopeId !== scopeId) {
+      const prevScope = this.currentScopeId;
+      this.currentScopeId = scopeId;
+      this.closeScope(prevScope).catch(() => {});
+    } else {
+      this.currentScopeId = scopeId;
+    }
 
     if (this._remote && this._remote.connectionStatus === 'connected') {
       if (this._persistence) {
@@ -458,8 +507,12 @@ class StoreImpl implements Store {
           if (bundle) {
             this.memory.loadScope(scopeId, bundle, 'load');
           }
+          await this.loadRootIntoMemory(rootEntity, scopeId);
         } else {
           this.memory.loadScope(scopeId, state.children, 'load');
+          if (state.root && state.root.id) {
+            this.memory.create(rootEntity, scopeId, state.root, 'load');
+          }
         }
       } catch (err) {
         console.error('[Stitch] Failed to open scope from server:', err);
@@ -468,6 +521,7 @@ class StoreImpl implements Store {
           if (bundle) {
             this.memory.loadScope(scopeId, bundle, 'load');
           }
+          await this.loadRootIntoMemory(rootEntity, scopeId);
         }
       } finally {
         if (this._persistence) {
@@ -479,6 +533,7 @@ class StoreImpl implements Store {
       if (bundle) {
         this.memory.loadScope(scopeId, bundle, 'load');
       }
+      await this.loadRootIntoMemory(rootEntity, scopeId);
     }
   }
 
@@ -520,6 +575,7 @@ class StoreImpl implements Store {
   }
 
   setAuthenticatedUser(userId: string): void {
+    this._authenticatedUser = userId;
     this._remote?.setAuthenticatedUser(userId);
     if (this._queue && 'setAuthenticatedUser' in this._queue) {
       (this._queue as OfflineQueueExt).setAuthenticatedUser!(userId);
@@ -541,6 +597,7 @@ class StoreImpl implements Store {
     this._queue = null;
     this._ready = false;
     this.currentScopeId = null;
+    this._authenticatedUser = null;
     this.initialSyncDone = false;
     this._connectionStatus = 'offline';
     sessionStorage.removeItem('stitch_cached_user');
@@ -658,6 +715,7 @@ class StoreImpl implements Store {
       if (this._queue && this._remote) {
         const sender = this.createMutationSender();
         await this._queue.flush(sender);
+        await this._queue.flush(sender);
       }
       if (this._remote) {
         const localAccessor = this.createLocalAccessor();
@@ -666,7 +724,7 @@ class StoreImpl implements Store {
         this.initialSyncDone = true;
       }
     } catch (err) {
-      console.error('[Stitch] Sync/flush on connect failed:', err);
+      void err;
       this.initialSyncDone = true;
     }
   }
@@ -731,6 +789,15 @@ class StoreImpl implements Store {
         this.memory.delete(entity, id);
       },
     };
+  }
+
+  private async loadRootIntoMemory(rootEntity: string, scopeId: string): Promise<void> {
+    if (!this._persistence) return;
+    try {
+      const rootRecord = await this._persistence.read(rootEntity, scopeId);
+      this.memory.create(rootEntity, scopeId, rootRecord, 'load');
+    } catch {
+    }
   }
 
   private async loadScopeFromPersistence(scopeId: string): Promise<Record<string, Record<string, unknown>[]> | null> {

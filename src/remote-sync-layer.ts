@@ -198,6 +198,7 @@ class RemoteSyncLayerImpl implements RemoteSyncLayer {
 
     const allEntities = await this.sync.fetchList(rootEntity);
     if (allEntities === null) {
+      console.warn('[RemoteSyncLayer] fetchList returned null — server unreachable?');
       this.initialSyncDone = true;
       return;
     }
@@ -219,7 +220,10 @@ class RemoteSyncLayerImpl implements RemoteSyncLayer {
 
       if (queue) {
         const hasPendingInsert = await queue.hasPendingInsert(rootEntity, id);
-        if (hasPendingInsert) continue;
+        if (hasPendingInsert) {
+          console.log('[RemoteSyncLayer] keeping', id, '— has pending insert');
+          continue;
+        }
       }
 
       await localAccessor.delete(rootEntity, id);
