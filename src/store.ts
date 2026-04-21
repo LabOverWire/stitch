@@ -248,7 +248,8 @@ class StoreImpl implements Store {
       } catch (err) {
         if (err instanceof OwnershipError) {
           await this._queue?.remove(entity, id, effectiveScopeId, 'insert');
-          throw err;
+          console.warn(`[Stitch] OwnershipError on create ${entity}/${id}:`, err.message);
+          return id;
         }
         if (!isTransientSyncError(err)) {
           console.error(`[Stitch] Failed to sync create ${entity}:`, err);
@@ -308,7 +309,8 @@ class StoreImpl implements Store {
       } catch (err) {
         if (err instanceof OwnershipError) {
           await this._queue?.remove(entity, id, scopeId, 'update');
-          throw err;
+          console.warn(`[Stitch] OwnershipError on update ${entity}/${id}:`, err.message);
+          return;
         }
         const isNotFound = err instanceof Error && /not found/i.test(err.message);
         if (isNotFound && entity === rootEntity) {
@@ -332,7 +334,8 @@ class StoreImpl implements Store {
           } catch (createErr) {
             if (createErr instanceof OwnershipError) {
               await this._queue?.remove(entity, id, scopeId, 'update');
-              throw createErr;
+              console.warn(`[Stitch] OwnershipError on upsert ${entity}/${id}:`, createErr.message);
+              return;
             }
             if (!isTransientSyncError(createErr)) {
               console.error(`[Stitch] Failed to sync upsert ${entity}:`, createErr);
@@ -396,7 +399,8 @@ class StoreImpl implements Store {
       } catch (err) {
         if (err instanceof OwnershipError) {
           await this._queue?.remove(entity, id, scopeId, 'delete');
-          throw err;
+          console.warn(`[Stitch] OwnershipError on delete ${entity}/${id}:`, err.message);
+          return;
         }
         const isNotFound = err instanceof Error && /not found/i.test(err.message);
         if (!isNotFound && !isTransientSyncError(err)) {
