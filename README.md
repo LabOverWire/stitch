@@ -1,0 +1,369 @@
+# @laboverwire/stitch
+
+Reactive state synchronization library. Bridges an in-memory store, IndexedDB persistence, and MQTT-based remote sync into a single `Store` interface. Ships framework bindings for React and Vue 3.
+
+## Install
+
+```bash
+npm install @laboverwire/stitch
+```
+
+Peer dependencies (install whichever framework you use):
+
+```bash
+npm install react@^19.0.0    # for React bindings
+npm install vue@^3.3.0       # for Vue bindings
+npm install mqdb-wasm@^0.2.0 mqtt5-wasm@^1.0.0
+```
+
+## Quick Start (React)
+
+```tsx
+import { createStore } from '@laboverwire/stitch';
+import type { StoreConfig } from '@laboverwire/stitch';
+import { StoreProvider, useStore, useEntitySnapshot, useSyncScope } from '@laboverwire/stitch/react';
+
+const config: StoreConfig = {
+  dbName: 'my-app',
+  entities: {
+    project: {
+      fields: [
+        { name: 'id', type: 'TEXT' },
+        { name: 'name', type: 'TEXT' },
+      ],
+    },
+    task: {
+      fields: [
+        { name: 'id', type: 'TEXT' },
+        { name: 'projectId', type: 'TEXT' },
+        { name: 'title', type: 'TEXT' },
+        { name: 'done', type: 'INTEGER' },
+      ],
+      foreignKeys: [{ field: 'projectId', references: { entity: 'project', field: 'id' } }],
+    },
+  },
+  scope: {
+    rootEntity: 'project',
+    childEntities: ['task'],
+    scopeField: 'projectId',
+  },
+};
+
+const store = createStore(config, {
+  persistence: { dbName: 'my-app' },
+  remote: { serverUrl: 'wss://mqtt.example.com', getTicket: () => fetchAuthTicket() },
+});
+
+function App() {
+  return (
+    <StoreProvider store={store} userId="user-123" authenticated>
+      <ProjectView scopeId="project-abc" />
+    </StoreProvider>
+  );
+}
+
+function ProjectView({ scopeId }: { scopeId: string }) {
+  const { store } = useStore();
+  const { syncing } = useSyncScope(store, scopeId);
+  const tasks = useEntitySnapshot(store, scopeId, 'task');
+
+  if (syncing) return <div>Loading...</div>;
+
+  return (
+    <ul>
+      {tasks.map((t) => (
+        <li key={t.id as string}>{t.title as string}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Quick Start (Vue 3)
+
+```vue
+<script setup lang="ts">
+import { createStore } from '@laboverwire/stitch';
+import type { StoreConfig } from '@laboverwire/stitch';
+import { StitchRoot, useStore, useEntitySnapshot, useSyncScope } from '@laboverwire/stitch/vue';
+
+const config: StoreConfig = { /* same as React example */ };
+
+const store = createStore(config, {
+  persistence: { dbName: 'my-app' },
+  remote: { serverUrl: 'wss://mqtt.example.com', getTicket: () => fetchAuthTicket() },
+});
+</script>
+
+<template>
+  <StitchRoot :store="store" user-id="user-123" authenticated>
+    <ProjectView scope-id="project-abc" />
+  </StitchRoot>
+</template>
+```
+
+```vue
+<script setup lang="ts">
+import { useStore, useEntitySnapshot, useSyncScope } from '@laboverwire/stitch/vue';
+
+const props = defineProps<{ scopeId: string }>();
+const { store } = useStore();
+const { syncing, openScope } = useSyncScope(store, () => props.scopeId);
+const tasks = useEntitySnapshot(store, () => props.scopeId, 'task');
+
+openScope();
+</script>
+
+<template>
+  <div v-if="syncing">Loading...</div>
+  <ul v-else>
+    <li v-for="t in tasks" :key="(t.id as string)">{{ t.title }}</li>
+  </ul>
+</template>
+```
+
+## Configuration
+
+### `StoreConfig`
+
+| Field | Type | Description |
+|---|---|---|
+| `dbName` | `string` | Database name for IndexedDB |
+| `entities` | `Record<string, EntityDefinition>` | Entity schemas (fields, foreign keys, indexes, unique constraints) |
+| `scope.rootEntity` | `string` | Top-level entity type (e.g. `'project'`) |
+| `scope.childEntities` | `string[]` | Entity types scoped under the root |
+| `scope.scopeField` | `string` | Field on children referencing root's `id` |
+| `topLevelEntities` | `Array<{ entity, subscriptionPattern }>` | Entities synced globally, not scoped |
+| `localOnlyEntities` | `Record<string, EntityDefinition>` | Entities that never touch MQTT |
+| `syncTopicPrefix` | `string` | MQTT topic prefix (default: `$DB`) |
+| `responseTopicPrefix` | `string` | MQTT response prefix (default: `$SYS/responses`) |
+| `versionField` | `string` | Field name for optimistic version tracking |
+| `updatedAtField` | `string` | Field name for last-updated timestamp |
+| `userScopeField` | `string` | Field name for user-level scoping |
+
+### `StoreOptions`
+
+| Field | Type | Description |
+|---|---|---|
+| `persistence` | `{ dbName: string }` | Enable IndexedDB persistence |
+| `remote` | `{ serverUrl: string, getTicket?: () => Promise<string> }` | Enable MQTT sync with optional JWT auth |
+
+### Scope Model
+
+A **scope** is an instance of the root entity. Opening a scope subscribes to MQTT topics, fetches root + children from the server, reconciles with local data, and loads everything into the memory store.
+
+- The root entity's `id` **is** the `scopeId`
+- Child entities reference the root via `scopeField`
+- `openScope(scopeId)` loads server data and starts real-time sync
+- `closeScope(scopeId)` unsubscribes and clears in-memory data
+
+## Framework Integration
+
+### React
+
+#### Providers
+
+**`StoreProvider`** (recommended) — wraps the unified `Store` created by `createStore()`:
+
+```tsx
+<StoreProvider
+  store={store}
+  serverUrl="wss://mqtt.example.com"   // optional, overrides config
+  getTicket={() => fetchAuthTicket()}   // optional JWT provider
+  userId="user-123"
+  authenticated={true}
+  onSessionInvalid={() => logout()}
+  onReconnectValidate={() => validateSession()}
+>
+  {children}
+</StoreProvider>
+```
+
+**`StitchProvider`** (legacy) — accepts separate memory store and persistence store. Use when you need manual control over individual layers.
+
+#### Hooks
+
+| Hook | Description |
+|---|---|
+| `useStore()` | Access `Store` instance and connection state from `StoreProvider` |
+| `useEntitySnapshot(store, scopeId, entity)` | Reactive array of all records for an entity within a scope |
+| `useEntitySnapshotAsMap(store, scopeId, entity)` | Same as above but as `Record<id, record>` map |
+| `useSyncScope(store, scopeId)` | Open/close a scope; returns `{ syncing, syncError, openScope, closeScope }` |
+| `useScopedEntities(store, scopeId, entity)` | Async-loaded scoped entities with `{ data, loading, error, refetch }` |
+| `useConnectionStatus(store)` | Current MQTT connection status |
+| `useRootEntityList(store, config?)` | List all root entities with `{ items, loading, error, refetch }` |
+| `useChildCounts(store, entity)` | Map of `scopeId → count` for a child entity |
+| `useTopLevelEntities(store, entity)` | List globally-synced entities with `{ items, loading }` |
+| `usePersistenceToMemorySync()` | Bridges persistence layer changes into memory store |
+| `useStitch()` | Access context from legacy `StitchProvider` |
+
+### Vue 3
+
+#### Provider
+
+**`StitchRoot`** — renderless component that initializes the store and provides it to descendants via `inject`:
+
+```vue
+<StitchRoot
+  :store="store"
+  server-url="wss://mqtt.example.com"
+  :get-ticket="() => fetchAuthTicket()"
+  user-id="user-123"
+  :authenticated="true"
+  :on-session-invalid="() => logout()"
+  :on-reconnect-validate="() => validateSession()"
+>
+  <slot />
+</StitchRoot>
+```
+
+#### Composables
+
+| Composable | Description |
+|---|---|
+| `useStore()` | Access `Store` instance and connection state from `StitchRoot` |
+| `useEntitySnapshot(store, scopeId, entity)` | `ShallowRef` of records array; params accept `MaybeRefOrGetter` |
+| `useEntitySnapshotAsMap(store, scopeId, entity)` | Same as above but as `Record<id, record>` map |
+| `useSyncScope(store, scopeId)` | Open/close a scope; returns `{ syncing, syncError, openScope, closeScope }` as shallow refs |
+| `useConnectionStatus(store)` | `ShallowRef<ConnectionStatus>` tracking MQTT connection state |
+
+## Store API
+
+### Lifecycle
+
+```ts
+store.initialize()          // connect persistence + MQTT, returns Promise
+store.destroy()             // tear down all layers
+store.ready                 // boolean, true after initialization
+```
+
+### CRUD
+
+```ts
+store.create(entity, scopeId, data, tag?)   // returns Promise<id>
+store.update(entity, id, fields, tag?)      // partial update
+store.delete(entity, id, tag?)              // delete by id
+```
+
+### Queries
+
+```ts
+store.read(entity, id)                       // single record or null (sync, from memory)
+store.getSnapshot(entity, scopeId)           // all records for entity in scope (sync)
+store.getSnapshotAsMap(entity, scopeId)      // same as map keyed by id (sync)
+store.list(entity, filter?)                  // filtered list from persistence (async)
+store.listRootEntities(sort?)                // all root entities (async)
+store.getChildCount(entity, scopeId)         // count children in scope (async)
+```
+
+### Subscriptions
+
+```ts
+store.subscribeToScope(scopeId, entity, cb)    // fires on scope data change, returns unsubscribe
+store.subscribeToEntity(entity, cb)            // fires on any change to entity type
+store.onMutation(listener)                     // fires on every mutation event
+store.subscribe(entity, cb)                    // raw WASM subscription (insert/update/delete)
+```
+
+### Batch Operations
+
+```ts
+store.beginBatch()    // start batching mutations (defers subscriber notifications)
+store.endBatch()      // flush batch and notify subscribers
+```
+
+### Scope Management
+
+```ts
+store.openScope(scopeId)                      // subscribe MQTT + fetch + reconcile + load
+store.closeScope(scopeId)                     // unsubscribe + clear in-memory data
+store.loadScope(scopeId, data)                // manually load scope data (no network)
+store.clearScope(scopeId)                     // clear in-memory scope data
+```
+
+### Connection
+
+```ts
+store.connectionStatus                        // current ConnectionStatus
+store.isReconnecting                          // boolean
+store.subscribeToConnectionStatus(cb)         // returns unsubscribe
+store.disconnect()                            // close MQTT connection
+store.reconnect(serverUrl, getTicket?)        // reconnect with new credentials
+```
+
+### Authentication & Session
+
+```ts
+store.setAuthenticatedUser(userId)
+store.setSessionInvalidHandler(handler)
+store.setReconnectValidator(validator)
+store.resetForLogout()
+
+store.getCachedUser()                         // from sessionStorage (15min TTL)
+store.setCachedUser(user)
+store.clearCachedUser()
+
+store.hasPendingLogout()
+store.setPendingLogout(pending)
+store.flushPendingLogout(logoutFn)
+```
+
+### Local State
+
+```ts
+store.readLocalState(entity, id)              // read from local-only entities
+store.updateLocalState(entity, id, fields)    // write to local-only entities
+```
+
+### Advanced
+
+```ts
+store.request(topic, payload)                 // raw MQTT request-response
+store.hasPersistence                          // boolean
+store.hasRemote                               // boolean
+store.memory                                  // underlying MemoryStore
+store.config                                  // StoreConfig
+```
+
+## Key Concepts
+
+### Origin Tags
+
+Mutations carry an `originTag` controlling propagation:
+
+- `null`/`undefined` — local user mutation, propagated everywhere (memory → persistence → MQTT)
+- `'remote'` — from network, skips persistence write (prevents loops)
+- `'load'` — from scope loading, skips persistence write
+- `'clear'` — scope clearing operation
+
+### Offline Queue
+
+Local mutations are queued in `pending_sync` and flushed when connected. Before flushing, mutations are consolidated:
+
+- Multiple updates to same entity → merged (last write wins per field)
+- Insert + updates → single insert with merged data
+- Insert + delete → just delete
+
+### Reconciliation
+
+On reconnect or scope open, server state is compared with local:
+
+- Server records not found locally → created locally
+- Local records not on server → deleted (unless pending insert in queue)
+- Records with pending local updates → local version kept
+
+### Connection Resilience
+
+- Exponential backoff: `min(1000 * 2^n, 30000)ms` with 25% jitter for 5 attempts, then 15s intervals
+- Auth errors cancel reconnection entirely
+- Tab visibility: if hidden >30s and disconnected, auto-reconnect triggers on return
+
+## Current Status
+
+This package is consumed as raw TypeScript via Vite aliases (`allowImportingTsExtensions`). It is not yet published to npm. All internal imports use `.ts`/`.tsx` extensions.
+
+To type-check:
+
+```bash
+npx tsc --noEmit
+```
