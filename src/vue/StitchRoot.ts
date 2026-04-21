@@ -1,11 +1,4 @@
-import {
-  defineComponent,
-  provide,
-  shallowRef,
-  onMounted,
-  onUnmounted,
-  watch,
-} from 'vue';
+import { defineComponent, provide, shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import type { PropType } from 'vue';
 import type { ConnectionStatus, Store } from '../types.ts';
 import { STITCH_KEY } from './injection-key.ts';
@@ -30,17 +23,32 @@ export const StitchRoot = defineComponent({
     let initializedFlag = false;
 
     const context = {
-      get store() { return props.store; },
-      get initialized() { return initialized.value && props.authenticated; },
-      get connectionStatus() { return connectionStatus.value; },
-      get error() { return error.value; },
+      get store() {
+        return props.store;
+      },
+      get initialized() {
+        return initialized.value && props.authenticated;
+      },
+      get connectionStatus() {
+        return connectionStatus.value;
+      },
+      get error() {
+        return error.value;
+      },
     };
 
     provide(STITCH_KEY, context);
 
     watch(
-      () => [props.authenticated, props.userId, props.onSessionInvalid, props.onReconnectValidate, props.store] as const,
-      ([authenticated, userId, sessionHandler, reconnectValidator, store], _prev) => {
+      () =>
+        [
+          props.authenticated,
+          props.userId,
+          props.onSessionInvalid,
+          props.onReconnectValidate,
+          props.store,
+        ] as const,
+      ([authenticated, userId, sessionHandler, reconnectValidator, store]) => {
         if (!authenticated) {
           if (initializedFlag) {
             store.disconnect();
@@ -81,9 +89,11 @@ export const StitchRoot = defineComponent({
 
         init();
 
-        return () => { mounted = false; };
+        return () => {
+          mounted = false;
+        };
       },
-      { immediate: true },
+      { immediate: true }
     );
 
     let unsubStatus: (() => void) | null = null;
@@ -105,7 +115,14 @@ export const StitchRoot = defineComponent({
     });
 
     watch(
-      () => [props.authenticated, initialized.value, props.store, props.serverUrl, props.getTicket] as const,
+      () =>
+        [
+          props.authenticated,
+          initialized.value,
+          props.store,
+          props.serverUrl,
+          props.getTicket,
+        ] as const,
       ([authenticated, ready, store, serverUrl, getTicket]) => {
         if (!authenticated || !ready || !store.hasRemote) return;
 
@@ -122,7 +139,9 @@ export const StitchRoot = defineComponent({
             if (store.connectionStatus !== 'connected' && !store.isReconnecting) {
               store
                 .reconnect(serverUrl, getTicket)
-                .catch((err: unknown) => console.error('[StitchRoot] Reconnect on wake failed:', err));
+                .catch((err: unknown) =>
+                  console.error('[StitchRoot] Reconnect on wake failed:', err)
+                );
             }
           }
         }
@@ -131,7 +150,7 @@ export const StitchRoot = defineComponent({
 
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
       },
-      { immediate: true },
+      { immediate: true }
     );
 
     return () => slots.default?.();

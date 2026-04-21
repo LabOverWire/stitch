@@ -5,6 +5,21 @@
   "private": true,
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier --write 'src/**/*.{ts,tsx}'",
+    "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
+    "check": "npm run type-check && npm run lint && npm run format:check",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  },
   "exports": {
     ".": "./src/index.ts",
     "./react": "./src/react/index.ts",
@@ -19,12 +34,25 @@
     "vue": "^3.3.0"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "vue": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.0",
     "vue": "^3.3.0"
   }
 }

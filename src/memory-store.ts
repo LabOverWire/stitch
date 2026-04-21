@@ -20,10 +20,7 @@ function stripNulls(obj: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
-function topologicalDeleteOrder(
-  entities: string[],
-  config: StoreConfig
-): string[] {
+function topologicalDeleteOrder(entities: string[], config: StoreConfig): string[] {
   const entitySet = new Set(entities);
   const refCounts = new Map<string, number>();
   for (const e of entities) refCounts.set(e, 0);
@@ -251,7 +248,11 @@ class MemoryStoreImpl implements MemoryStore {
       const subId = this.db.subscribe(
         '#',
         entity,
-        (event: { operation: 'create' | 'update' | 'delete'; id: string; data: Record<string, unknown> | null }) => {
+        (event: {
+          operation: 'create' | 'update' | 'delete';
+          id: string;
+          data: Record<string, unknown> | null;
+        }) => {
           try {
             this.handleChangeEvent(entity, event);
           } catch (err) {
@@ -265,7 +266,11 @@ class MemoryStoreImpl implements MemoryStore {
 
   private handleChangeEvent(
     entity: string,
-    event: { operation: 'create' | 'update' | 'delete'; id: string; data: Record<string, unknown> | null }
+    event: {
+      operation: 'create' | 'update' | 'delete';
+      id: string;
+      data: Record<string, unknown> | null;
+    }
   ): void {
     this.lastOriginTag = this.originTag;
     const scopeField = this.config.scope.scopeField;
@@ -344,11 +349,7 @@ class MemoryStoreImpl implements MemoryStore {
     return this.lastOriginTag;
   }
 
-  subscribeToScope(
-    scopeId: string,
-    entity: string,
-    callback: SubscriptionCallback
-  ): () => void {
+  subscribeToScope(scopeId: string, entity: string, callback: SubscriptionCallback): () => void {
     if (!this.subscribers.has(scopeId)) {
       this.subscribers.set(scopeId, new Map());
     }
@@ -490,11 +491,7 @@ class MemoryStoreImpl implements MemoryStore {
     return this.listRecords(entity, scopeId);
   }
 
-  loadScope(
-    scopeId: string,
-    data: Record<string, Record<string, unknown>[]>,
-    tag?: string
-  ): void {
+  loadScope(scopeId: string, data: Record<string, Record<string, unknown>[]>, tag?: string): void {
     if (!this._WasmDatabase) return;
     const newDb = new this._WasmDatabase();
     this.registerSchemasOn(newDb);

@@ -4,7 +4,9 @@ import type { PersistenceStore, ConnectionStatus, Store } from '../../types.ts';
 import { isStore } from '../../internal-utils.ts';
 
 export function useConnectionStatus(store: PersistenceStore | Store): ShallowRef<ConnectionStatus> {
-  const initial: ConnectionStatus = isStore(store) ? store.connectionStatus : store.getConnectionStatus();
+  const initial: ConnectionStatus = isStore(store)
+    ? store.connectionStatus
+    : store.getConnectionStatus();
   const status = shallowRef<ConnectionStatus>(initial);
 
   watch(
@@ -15,7 +17,7 @@ export function useConnectionStatus(store: PersistenceStore | Store): ShallowRef
       });
       onCleanup(unsubscribe);
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   return status;

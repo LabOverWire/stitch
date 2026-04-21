@@ -53,7 +53,15 @@ function consolidateMutations(records: Array<Record<string, unknown>>): Consolid
     const { entity, entityId, scopeId } = entries[0];
 
     if (hasInsert && hasDelete) {
-      result.push({ op: 'delete', entity, id: entityId, scopeId, data: null, recordIds, minCreatedAt });
+      result.push({
+        op: 'delete',
+        entity,
+        id: entityId,
+        scopeId,
+        data: null,
+        recordIds,
+        minCreatedAt,
+      });
       continue;
     }
 
@@ -65,12 +73,28 @@ function consolidateMutations(records: Array<Record<string, unknown>>): Consolid
           Object.assign(mergedData, e.data);
         }
       }
-      result.push({ op: 'insert', entity, id: entityId, scopeId, data: mergedData, recordIds, minCreatedAt });
+      result.push({
+        op: 'insert',
+        entity,
+        id: entityId,
+        scopeId,
+        data: mergedData,
+        recordIds,
+        minCreatedAt,
+      });
       continue;
     }
 
     if (hasDelete) {
-      result.push({ op: 'delete', entity, id: entityId, scopeId, data: null, recordIds, minCreatedAt });
+      result.push({
+        op: 'delete',
+        entity,
+        id: entityId,
+        scopeId,
+        data: null,
+        recordIds,
+        minCreatedAt,
+      });
       continue;
     }
 
@@ -143,10 +167,7 @@ async function flushConsolidated(
           await removeRecords(recordIds);
         } catch (upsertErr) {
           if (!isTransientSyncError(upsertErr)) {
-            console.error(
-              `[OfflineQueue] Failed to upsert ${entity} during flush:`,
-              upsertErr
-            );
+            console.error(`[OfflineQueue] Failed to upsert ${entity} during flush:`, upsertErr);
             await removeRecords(recordIds);
           }
         }
@@ -368,9 +389,7 @@ class InMemoryOfflineQueue implements OfflineQueue {
   }
 
   async hasPendingInsert(entity: string, entityId: string): Promise<boolean> {
-    return this.pending.some(
-      (p) => p.entity === entity && p.id === entityId && p.op === 'insert'
-    );
+    return this.pending.some((p) => p.entity === entity && p.id === entityId && p.op === 'insert');
   }
 }
 

@@ -114,10 +114,7 @@ class StoreImpl implements Store {
       }
 
       if (this._persistence) {
-        const queue = createPersistentOfflineQueue(
-          this._persistence,
-          this.config.scope.rootEntity
-        );
+        const queue = createPersistentOfflineQueue(this._persistence, this.config.scope.rootEntity);
         this._queue = queue;
         if (this._authenticatedUser && 'setAuthenticatedUser' in queue) {
           (queue as OfflineQueueExt).setAuthenticatedUser!(this._authenticatedUser);
@@ -221,7 +218,12 @@ class StoreImpl implements Store {
     return this.memory.list(entity, scopeId).length;
   }
 
-  async create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): Promise<string> {
+  async create(
+    entity: string,
+    scopeId: string,
+    data: Record<string, unknown>,
+    tag?: string
+  ): Promise<string> {
     const { rootEntity } = this.config.scope;
     const id = (data.id as string) || crypto.randomUUID();
     const record = stripNulls({ ...data, id });
@@ -238,7 +240,13 @@ class StoreImpl implements Store {
     }
 
     if (this._queue && effectiveScopeId) {
-      await this._queue.queue({ op: 'insert', entity, id, scopeId: effectiveScopeId, data: record });
+      await this._queue.queue({
+        op: 'insert',
+        entity,
+        id,
+        scopeId: effectiveScopeId,
+        data: record,
+      });
     }
 
     if (this._remote && this._remote.connectionStatus === 'connected' && effectiveScopeId) {
@@ -260,7 +268,12 @@ class StoreImpl implements Store {
     return id;
   }
 
-  async update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): Promise<void> {
+  async update(
+    entity: string,
+    id: string,
+    fields: Record<string, unknown>,
+    tag?: string
+  ): Promise<void> {
     const { rootEntity, scopeField } = this.config.scope;
 
     const memExisting = this.memory.read(entity, id);
@@ -319,7 +332,8 @@ class StoreImpl implements Store {
               await this._persistence.delete(rootEntity, id);
             }
             this.memory.delete(rootEntity, id);
-          } catch {
+          } catch (cleanupErr) {
+            console.error(`[Stitch] Cleanup delete ${rootEntity}/${id} failed:`, cleanupErr);
           }
           await this._queue?.remove(entity, id, scopeId, 'update');
         } else if (isNotFound) {
@@ -499,7 +513,11 @@ class StoreImpl implements Store {
           for (const childEntity of childEntities) {
             const serverChildren = state.children[childEntity] ?? [];
             await this._remote.reconcileChildren(
-              scopeId, childEntity, serverChildren, localAccessor, this._queue
+              scopeId,
+              childEntity,
+              serverChildren,
+              localAccessor,
+              this._queue
             );
           }
 
@@ -620,7 +638,11 @@ class StoreImpl implements Store {
     return this.memory.read(entity, id);
   }
 
-  async updateLocalState(entity: string, id: string, fields: Record<string, unknown>): Promise<void> {
+  async updateLocalState(
+    entity: string,
+    id: string,
+    fields: Record<string, unknown>
+  ): Promise<void> {
     if (this._persistence) {
       await this._persistence.updateLocalState(entity, id, fields);
     } else {
@@ -651,10 +673,7 @@ class StoreImpl implements Store {
   }
 
   async setCachedUser(user: Record<string, unknown>): Promise<void> {
-    sessionStorage.setItem(
-      'stitch_cached_user',
-      JSON.stringify({ user, cachedAt: Date.now() })
-    );
+    sessionStorage.setItem('stitch_cached_user', JSON.stringify({ user, cachedAt: Date.now() }));
     sessionStorage.removeItem('stitch_pending_logout');
   }
 
@@ -698,7 +717,12 @@ class StoreImpl implements Store {
           if (mutation.data) {
             const sid = mutation.data[scopeField] as string | undefined;
             if (sid) {
-              this.memory.create(mutation.entity, sid, { ...mutation.data, id: mutation.id }, 'remote');
+              this.memory.create(
+                mutation.entity,
+                sid,
+                { ...mutation.data, id: mutation.id },
+                'remote'
+              );
             }
           }
           break;
@@ -750,7 +774,9 @@ class StoreImpl implements Store {
         return result;
       },
       list: async (entity, options) => {
-        const filters = (options as Record<string, unknown>).filters as Array<{ field: string; op: string; value: unknown }> | undefined;
+        const filters = (options as Record<string, unknown>).filters as
+          | Array<{ field: string; op: string; value: unknown }>
+          | undefined;
         if (filters && filters.length > 0) {
           const scopeFilter = filters.find((f) => f.field === this.config.scope.scopeField);
           if (scopeFilter) {
@@ -776,7 +802,8 @@ class StoreImpl implements Store {
   private createMutationSender(): MutationSender {
     return {
       syncCreate: (entity, scopeId, data) => this._remote!.syncCreate(entity, scopeId, data),
-      syncUpdate: (entity, scopeId, id, data) => this._remote!.syncUpdate(entity, scopeId, id, data),
+      syncUpdate: (entity, scopeId, id, data) =>
+        this._remote!.syncUpdate(entity, scopeId, id, data),
       syncDelete: (entity, scopeId, id) => this._remote!.syncDelete(entity, scopeId, id),
       readEntity: async (entity, id) => {
         if (this._persistence) {
@@ -800,11 +827,14 @@ class StoreImpl implements Store {
     try {
       const rootRecord = await this._persistence.read(rootEntity, scopeId);
       this.memory.create(rootEntity, scopeId, rootRecord, 'load');
-    } catch {
+    } catch (readErr) {
+      console.debug(`[Stitch] Root entity ${rootEntity}/${scopeId} not in persistence:`, readErr);
     }
   }
 
-  private async loadScopeFromPersistence(scopeId: string): Promise<Record<string, Record<string, unknown>[]> | null> {
+  private async loadScopeFromPersistence(
+    scopeId: string
+  ): Promise<Record<string, Record<string, unknown>[]> | null> {
     if (!this._persistence) return null;
     const { childEntities, scopeField } = this.config.scope;
     const children: Record<string, Record<string, unknown>[]> = {};
@@ -822,24 +852,27 @@ class StoreImpl implements Store {
     const { childEntities, scopeField } = this.config.scope;
 
     for (const entity of childEntities) {
-      this._persistence.subscribe(entity, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
-        if (entityData === null || typeof entityData !== 'object') return;
-        const record = entityData as Record<string, unknown>;
-        const sid = record[scopeField] as string | undefined;
-        if (!sid || sid !== this.currentScopeId) return;
+      this._persistence.subscribe(
+        entity,
+        (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+          if (entityData === null || typeof entityData !== 'object') return;
+          const record = entityData as Record<string, unknown>;
+          const sid = record[scopeField] as string | undefined;
+          if (!sid || sid !== this.currentScopeId) return;
 
-        switch (op) {
-          case 'insert':
-            this.memory.create(entity, sid, record, 'remote');
-            break;
-          case 'update':
-            this.memory.update(entity, record.id as string, record, 'remote');
-            break;
-          case 'delete':
-            this.memory.delete(entity, record.id as string, 'remote');
-            break;
+          switch (op) {
+            case 'insert':
+              this.memory.create(entity, sid, record, 'remote');
+              break;
+            case 'update':
+              this.memory.update(entity, record.id as string, record, 'remote');
+              break;
+            case 'delete':
+              this.memory.delete(entity, record.id as string, 'remote');
+              break;
+          }
         }
-      });
+      );
     }
   }
 }

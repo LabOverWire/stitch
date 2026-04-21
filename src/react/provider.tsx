@@ -1,5 +1,11 @@
 import { useEffect, useState, useRef, useMemo, type ReactNode } from 'react';
-import type { MemoryStore, PersistenceStore, StoreConfig, ConnectionStatus, Store } from '../types.ts';
+import type {
+  MemoryStore,
+  PersistenceStore,
+  StoreConfig,
+  ConnectionStatus,
+  Store,
+} from '../types.ts';
 import { StitchContext, StoreContext } from './context.ts';
 
 interface StitchProviderProps {
@@ -51,7 +57,11 @@ export function StitchProvider({
             persistenceStore.setAuthenticatedUser(userId);
           }
           const status = persistenceStore.getConnectionStatus();
-          if (status !== 'connected' && status !== 'connecting' && !persistenceStore.isReconnecting()) {
+          if (
+            status !== 'connected' &&
+            status !== 'connecting' &&
+            !persistenceStore.isReconnecting()
+          ) {
             await persistenceStore.reconnect(serverUrl, getTicket);
           }
           if (mounted && !initializedRef.current) {
@@ -93,7 +103,15 @@ export function StitchProvider({
     return () => {
       mounted = false;
     };
-  }, [authenticated, serverUrl, userId, getTicket, onSessionInvalid, onReconnectValidate, persistenceStore]);
+  }, [
+    authenticated,
+    serverUrl,
+    userId,
+    getTicket,
+    onSessionInvalid,
+    onReconnectValidate,
+    persistenceStore,
+  ]);
 
   useEffect(() => {
     const unsubscribe = persistenceStore.subscribeToConnectionStatus((status) => {
@@ -263,7 +281,9 @@ export function StoreProvider({
         if (store.connectionStatus !== 'connected' && !store.isReconnecting) {
           store
             .reconnect(serverUrl, getTicket)
-            .catch((err: unknown) => console.error('[StitchProvider] Reconnect on wake failed:', err));
+            .catch((err: unknown) =>
+              console.error('[StitchProvider] Reconnect on wake failed:', err)
+            );
         }
       }
     }

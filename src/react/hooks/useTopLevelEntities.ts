@@ -64,17 +64,20 @@ export function useTopLevelEntities(
         });
     };
 
-    const unsubscribe = store.subscribe(entity, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
-      if (entityData === null) {
-        fetchAll();
-        return;
+    const unsubscribe = store.subscribe(
+      entity,
+      (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+        if (entityData === null) {
+          fetchAll();
+          return;
+        }
+        if (!fetched) {
+          buffer.push({ entity: entityData, op });
+          return;
+        }
+        setItems((prev) => applyEvent(prev, entityData, op));
       }
-      if (!fetched) {
-        buffer.push({ entity: entityData, op });
-        return;
-      }
-      setItems((prev) => applyEvent(prev, entityData, op));
-    });
+    );
 
     fetchAll();
 

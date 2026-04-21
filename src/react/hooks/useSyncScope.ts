@@ -14,7 +14,10 @@ export function useSyncScope(
   const [syncError, setSyncError] = useState<Error | null>(null);
   const openedRef = useRef<string | null>(null);
   const currentScopeIdRef = useRef(scopeId);
-  currentScopeIdRef.current = scopeId;
+
+  useEffect(() => {
+    currentScopeIdRef.current = scopeId;
+  }, [scopeId]);
 
   const openScope = useCallback(async () => {
     if (!scopeId || openedRef.current === scopeId) return;

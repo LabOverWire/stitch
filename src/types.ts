@@ -197,7 +197,12 @@ export interface ConsolidatedMutation extends PendingMutation {
 
 export interface MutationSender {
   syncCreate(entity: string, scopeId: string, data: Record<string, unknown>): Promise<void>;
-  syncUpdate(entity: string, scopeId: string, id: string, data: Record<string, unknown>): Promise<void>;
+  syncUpdate(
+    entity: string,
+    scopeId: string,
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<void>;
   syncDelete(entity: string, scopeId: string, id: string): Promise<void>;
   readEntity(entity: string, id: string): Promise<Record<string, unknown>>;
   deleteEntity(entity: string, id: string): Promise<void>;
@@ -233,15 +238,30 @@ export interface RemoteSyncLayer {
   setReconnectValidator(validator: () => Promise<void>): void;
 
   syncCreate(entity: string, scopeId: string, data: Record<string, unknown>): Promise<void>;
-  syncUpdate(entity: string, scopeId: string, id: string, data: Record<string, unknown>): Promise<void>;
+  syncUpdate(
+    entity: string,
+    scopeId: string,
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<void>;
   syncDelete(entity: string, scopeId: string, id: string): Promise<void>;
 
   openScope(scopeId: string): Promise<ScopeState>;
   closeScope(scopeId: string): Promise<void>;
-  fetchList(entity: string, scopeId?: string, sort?: SortField[]): Promise<Record<string, unknown>[] | null>;
+  fetchList(
+    entity: string,
+    scopeId?: string,
+    sort?: SortField[]
+  ): Promise<Record<string, unknown>[] | null>;
 
   syncRootEntityList(localAccessor: LocalAccessor, queue: OfflineQueue | null): Promise<void>;
-  reconcileChildren(scopeId: string, entity: string, serverRecords: Record<string, unknown>[], localAccessor: LocalAccessor, queue: OfflineQueue | null): Promise<void>;
+  reconcileChildren(
+    scopeId: string,
+    entity: string,
+    serverRecords: Record<string, unknown>[],
+    localAccessor: LocalAccessor,
+    queue: OfflineQueue | null
+  ): Promise<void>;
   applyMutationToDb(mutation: SyncMutation, localAccessor: LocalAccessor): Promise<void>;
 
   request(topic: string, payload: unknown): Promise<Record<string, unknown>>;
@@ -276,7 +296,12 @@ export interface Store {
   listRootEntities(sort?: SortField[]): Promise<Record<string, unknown>[]>;
   getChildCount(entity: string, scopeId: string): Promise<number>;
 
-  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): Promise<string>;
+  create(
+    entity: string,
+    scopeId: string,
+    data: Record<string, unknown>,
+    tag?: string
+  ): Promise<string>;
   update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): Promise<void>;
   delete(entity: string, id: string, tag?: string): Promise<void>;
 
@@ -327,18 +352,12 @@ export interface Store {
 }
 
 export interface SyncEngine {
-  connect(
-    serverUrl: string,
-    wasmModule: unknown,
-    getTicket?: () => Promise<string>
-  ): Promise<void>;
+  connect(serverUrl: string, wasmModule: unknown, getTicket?: () => Promise<string>): Promise<void>;
   reconnect(serverUrl: string, getTicket?: () => Promise<string>): Promise<void>;
   disconnect(): void;
   readonly isReconnecting: boolean;
 
-  setMutationHandler(
-    handler: (scopeId: string, mutation: SyncMutation) => void
-  ): void;
+  setMutationHandler(handler: (scopeId: string, mutation: SyncMutation) => void): void;
   setConnectionStatusHandler(handler: (status: ConnectionStatus) => void): void;
   setSessionInvalidHandler(handler: () => void): void;
 

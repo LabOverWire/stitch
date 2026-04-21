@@ -4,7 +4,7 @@ import type { PersistenceStore, Store } from '../../types.ts';
 
 export function useSyncScope(
   store: PersistenceStore | Store,
-  scopeId: MaybeRefOrGetter<string | null>,
+  scopeId: MaybeRefOrGetter<string | null>
 ): {
   syncing: ShallowRef<boolean>;
   syncError: ShallowRef<Error | null>;
@@ -52,7 +52,7 @@ export function useSyncScope(
         store.closeScope(openedScopeId).catch(() => {});
         openedScopeId = null;
       }
-    },
+    }
   );
 
   onUnmounted(() => {

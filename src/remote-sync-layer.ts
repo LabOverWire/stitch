@@ -235,9 +235,7 @@ class RemoteSyncLayerImpl implements RemoteSyncLayer {
 
       if (queue) {
         const pending = await queue.getPendingForScope(id);
-        const hasPendingDelete = pending.some(
-          (p) => p.op === 'delete' && p.entity === rootEntity
-        );
+        const hasPendingDelete = pending.some((p) => p.op === 'delete' && p.entity === rootEntity);
         if (hasPendingDelete) continue;
       }
 
@@ -360,10 +358,7 @@ class RemoteSyncLayerImpl implements RemoteSyncLayer {
     }
   }
 
-  async applyMutationToDb(
-    mutation: SyncMutation,
-    localAccessor: LocalAccessor
-  ): Promise<void> {
+  async applyMutationToDb(mutation: SyncMutation, localAccessor: LocalAccessor): Promise<void> {
     const { scopeField, rootEntity } = this.config.scope;
     const updatedAtField = this.config.updatedAtField ?? 'updatedAt';
 

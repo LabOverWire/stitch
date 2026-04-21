@@ -34,9 +34,11 @@ class PersistenceLayerImpl implements PersistenceLayer {
     if (this.db) return;
     const wasmMod = await import('mqdb-wasm');
     await wasmMod.default();
-    this.db = await (wasmMod.WasmDatabase as unknown as {
-      open_persistent(name: string): Promise<WasmDatabase>;
-    }).open_persistent(dbName);
+    this.db = await (
+      wasmMod.WasmDatabase as unknown as {
+        open_persistent(name: string): Promise<WasmDatabase>;
+      }
+    ).open_persistent(dbName);
     this.setupSchemas();
     this.setupWasmSubscriptions();
   }
@@ -146,7 +148,10 @@ class PersistenceLayerImpl implements PersistenceLayer {
     });
   }
 
-  async list(entity: string, options?: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+  async list(
+    entity: string,
+    options?: Record<string, unknown>
+  ): Promise<Record<string, unknown>[]> {
     return this.serialized('list:' + entity, async () => {
       if (!this.db) return [];
       try {
@@ -219,7 +224,11 @@ class PersistenceLayerImpl implements PersistenceLayer {
     });
   }
 
-  async updateLocalState(entity: string, id: string, fields: Record<string, unknown>): Promise<void> {
+  async updateLocalState(
+    entity: string,
+    id: string,
+    fields: Record<string, unknown>
+  ): Promise<void> {
     await this.serialized(
       'updateLocalState',
       async () => {
@@ -325,10 +334,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
     if (!this.db) return;
     this.unsubscribeAllWasm();
 
-    const allEntities = [
-      ...this.allSyncedEntities,
-      ...this.allLocalEntities,
-    ];
+    const allEntities = [...this.allSyncedEntities, ...this.allLocalEntities];
 
     for (const entity of allEntities) {
       const subId = this.db.subscribe('#', entity, (event: unknown) => {
@@ -357,9 +363,11 @@ class PersistenceLayerImpl implements PersistenceLayer {
     const oldDb = this.db;
     try {
       const wasmMod = await import('mqdb-wasm');
-      this.db = await (wasmMod.WasmDatabase as unknown as {
-        open_persistent(name: string): Promise<WasmDatabase>;
-      }).open_persistent(this.config.dbName);
+      this.db = await (
+        wasmMod.WasmDatabase as unknown as {
+          open_persistent(name: string): Promise<WasmDatabase>;
+        }
+      ).open_persistent(this.config.dbName);
       this.setupSchemas();
       this.setupWasmSubscriptions();
       return true;

@@ -4,7 +4,11 @@ import { isStore } from '../../internal-utils.ts';
 
 type ListItem = Record<string, unknown> & { id: string };
 
-function applyEvent(prev: ListItem[], entity: unknown, op: 'insert' | 'update' | 'delete'): ListItem[] {
+function applyEvent(
+  prev: ListItem[],
+  entity: unknown,
+  op: 'insert' | 'update' | 'delete'
+): ListItem[] {
   if (!entity || typeof entity !== 'object' || !('id' in entity)) return prev;
   const item = entity as ListItem;
   switch (op) {
@@ -80,20 +84,21 @@ export function useRootEntityList(
         });
     };
 
-    const unsubscribe = store.subscribe(rootEntity, (entity: unknown, op: 'insert' | 'update' | 'delete') => {
-      if (entity === null) {
-        fetchAll();
-        return;
+    const unsubscribe = store.subscribe(
+      rootEntity,
+      (entity: unknown, op: 'insert' | 'update' | 'delete') => {
+        if (entity === null) {
+          fetchAll();
+          return;
+        }
+        if (!fetched) {
+          buffer.push({ entity, op });
+          return;
+        }
+        setItems((prev) => applyEvent(prev, entity, op));
       }
-      if (!fetched) {
-        buffer.push({ entity, op });
-        return;
-      }
-      setItems((prev) => applyEvent(prev, entity, op));
-    });
+    );
 
-    setLoading(true);
-    setError(null);
     fetchAll();
 
     return () => {

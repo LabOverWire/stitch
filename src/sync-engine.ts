@@ -113,9 +113,7 @@ class SyncEngineImpl implements SyncEngine {
             for (const scopeId of this.desiredScopes) {
               this.subscribeToScope(scopeId)
                 .then(() => this.subscribedScopes.add(scopeId))
-                .catch((err) =>
-                  console.error(`[SyncEngine] Re-subscribe ${scopeId} failed:`, err)
-                );
+                .catch((err) => console.error(`[SyncEngine] Re-subscribe ${scopeId} failed:`, err));
             }
           })
           .catch((err) => {
@@ -493,9 +491,7 @@ class SyncEngineImpl implements SyncEngine {
     }
 
     const childEntity = topic.match(
-      new RegExp(
-        `^\\${this.prefix}/${rootEntity}/([^/]+)/(\\w+)/events/(created|updated|deleted)$`
-      )
+      new RegExp(`^\\${this.prefix}/${rootEntity}/([^/]+)/(\\w+)/events/(created|updated|deleted)$`)
     );
     if (childEntity) {
       return { scopeId: childEntity[1], entity: childEntity[2], eventType: childEntity[3] };
@@ -520,11 +516,7 @@ class SyncEngineImpl implements SyncEngine {
     return origin === this.clientId;
   }
 
-  private handleWatchMessage(
-    topic: string,
-    payload: Uint8Array,
-    properties?: WasmMsgProps
-  ): void {
+  private handleWatchMessage(topic: string, payload: Uint8Array, properties?: WasmMsgProps): void {
     const parsed = this.parseScopedTopic(topic);
     if (!parsed) return;
 
@@ -712,10 +704,7 @@ class SyncEngineImpl implements SyncEngine {
     this.appliedVersion.set(scopeId, now);
   }
 
-  private async fetchOne(
-    entity: string,
-    id: string
-  ): Promise<Record<string, unknown> | null> {
+  private async fetchOne(entity: string, id: string): Promise<Record<string, unknown> | null> {
     try {
       const response = await this.request(`${this.prefix}/${entity}/${id}`, {});
       this.checkResponseAndAuth(response);
@@ -779,13 +768,11 @@ class SyncEngineImpl implements SyncEngine {
 
       const body = JSON.stringify(payload);
 
-      this.client!.publishWithOptions(topic, encoder.encode(body), pubOpts).catch(
-        (err: Error) => {
-          this.pendingRequests.delete(requestId);
-          clearTimeout(timeout);
-          reject(err);
-        }
-      );
+      this.client!.publishWithOptions(topic, encoder.encode(body), pubOpts).catch((err: Error) => {
+        this.pendingRequests.delete(requestId);
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
   }
 

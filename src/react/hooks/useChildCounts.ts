@@ -3,7 +3,11 @@ import type { PersistenceStore, StoreConfig, Store } from '../../types.ts';
 import { isStore } from '../../internal-utils.ts';
 
 export function useChildCounts(store: Store, entity: string): Map<string, number>;
-export function useChildCounts(store: PersistenceStore, config: StoreConfig, entity: string): Map<string, number>;
+export function useChildCounts(
+  store: PersistenceStore,
+  config: StoreConfig,
+  entity: string
+): Map<string, number>;
 export function useChildCounts(
   store: PersistenceStore | Store,
   configOrEntity: StoreConfig | string,
@@ -57,34 +61,37 @@ export function useChildCounts(
         });
     };
 
-    const unsubscribe = store.subscribe(entity, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
-      if (entityData === null) {
-        fetchAll();
-        return;
-      }
-      if (op === 'update') return;
-      if (typeof entityData !== 'object') return;
-
-      if (!fetched) {
-        buffer.push({ entity: entityData, op });
-        return;
-      }
-
-      const record = entityData as Record<string, unknown>;
-      const sid = record[scopeField] as string;
-      if (!sid) return;
-
-      setCounts((prev) => {
-        const next = new Map(prev);
-        const current = next.get(sid) ?? 0;
-        if (op === 'insert') {
-          next.set(sid, current + 1);
-        } else if (op === 'delete') {
-          next.set(sid, Math.max(0, current - 1));
+    const unsubscribe = store.subscribe(
+      entity,
+      (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+        if (entityData === null) {
+          fetchAll();
+          return;
         }
-        return next;
-      });
-    });
+        if (op === 'update') return;
+        if (typeof entityData !== 'object') return;
+
+        if (!fetched) {
+          buffer.push({ entity: entityData, op });
+          return;
+        }
+
+        const record = entityData as Record<string, unknown>;
+        const sid = record[scopeField] as string;
+        if (!sid) return;
+
+        setCounts((prev) => {
+          const next = new Map(prev);
+          const current = next.get(sid) ?? 0;
+          if (op === 'insert') {
+            next.set(sid, current + 1);
+          } else if (op === 'delete') {
+            next.set(sid, Math.max(0, current - 1));
+          }
+          return next;
+        });
+      }
+    );
 
     fetchAll();
 

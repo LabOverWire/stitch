@@ -37,7 +37,8 @@ export function useScopedEntities(
   error: Error | null;
   refetch: () => Promise<void>;
 } {
-  const effectiveScopeField = scopeField ?? (isStore(store) ? store.config.scope.scopeField : scopeField ?? '');
+  const effectiveScopeField =
+    scopeField ?? (isStore(store) ? store.config.scope.scopeField : (scopeField ?? ''));
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -64,8 +65,7 @@ export function useScopedEntities(
 
   useEffect(() => {
     if (!scopeId) {
-      setData([]);
-      setLoading(false);
+      Promise.resolve().then(() => setData([]));
       return;
     }
 
@@ -96,26 +96,27 @@ export function useScopedEntities(
         });
     };
 
-    const unsubscribe = store.subscribe(entity, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
-      if (entityData === null) {
-        fetchAll();
-        return;
-      }
-      const rec = entityData as Record<string, unknown>;
-      if (rec[effectiveScopeField] !== scopeId) {
-        return;
-      }
+    const unsubscribe = store.subscribe(
+      entity,
+      (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+        if (entityData === null) {
+          fetchAll();
+          return;
+        }
+        const rec = entityData as Record<string, unknown>;
+        if (rec[effectiveScopeField] !== scopeId) {
+          return;
+        }
 
-      if (!fetched) {
-        buffer.push({ entity: entityData, op });
-        return;
+        if (!fetched) {
+          buffer.push({ entity: entityData, op });
+          return;
+        }
+
+        setData((prev) => applyEvent(prev, entityData, op));
       }
+    );
 
-      setData((prev) => applyEvent(prev, entityData, op));
-    });
-
-    setLoading(true);
-    setError(null);
     fetchAll();
 
     return () => {

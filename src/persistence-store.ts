@@ -112,9 +112,11 @@ class PersistenceStoreImpl implements PersistenceStore {
       if (!this.db) {
         const wasmMod = await import('mqdb-wasm');
         await wasmMod.default();
-        this.db = await (wasmMod.WasmDatabase as unknown as {
-          open_persistent(name: string): Promise<WasmDatabase>;
-        }).open_persistent(this.config.dbName);
+        this.db = await (
+          wasmMod.WasmDatabase as unknown as {
+            open_persistent(name: string): Promise<WasmDatabase>;
+          }
+        ).open_persistent(this.config.dbName);
         this.setupSchemas();
         this.setupWasmSubscriptions();
       }
@@ -277,9 +279,7 @@ class PersistenceStoreImpl implements PersistenceStore {
           ? allEntities.filter((d) => d[userScopeField] === currentUser)
           : allEntities;
 
-      const localEntities = (await this.db.list(rootEntity, {})) as Array<
-        Record<string, unknown>
-      >;
+      const localEntities = (await this.db.list(rootEntity, {})) as Array<Record<string, unknown>>;
       for (const local of localEntities) {
         const id = local.id as string;
         if (!id) continue;
@@ -581,10 +581,7 @@ class PersistenceStoreImpl implements PersistenceStore {
     if (!this.db) return;
     this.unsubscribeAllWasm();
 
-    const allEntities = [
-      ...this.allSyncedEntities,
-      ...this.allLocalEntities,
-    ];
+    const allEntities = [...this.allSyncedEntities, ...this.allLocalEntities];
 
     for (const entity of allEntities) {
       const subId = this.db.subscribe('#', entity, (event: unknown) => {
@@ -613,9 +610,11 @@ class PersistenceStoreImpl implements PersistenceStore {
     const oldDb = this.db;
     try {
       const wasmMod = await import('mqdb-wasm');
-      this.db = await (wasmMod.WasmDatabase as unknown as {
-        open_persistent(name: string): Promise<WasmDatabase>;
-      }).open_persistent(this.config.dbName);
+      this.db = await (
+        wasmMod.WasmDatabase as unknown as {
+          open_persistent(name: string): Promise<WasmDatabase>;
+        }
+      ).open_persistent(this.config.dbName);
       this.setupSchemas();
       this.setupWasmSubscriptions();
       return true;
@@ -747,10 +746,7 @@ class PersistenceStoreImpl implements PersistenceStore {
     }
   }
 
-  subscribe(
-    entity: string,
-    callback: EntitySubscriptionCallback
-  ): () => void {
+  subscribe(entity: string, callback: EntitySubscriptionCallback): () => void {
     if (!this.entitySubscriptions.has(entity)) {
       this.entitySubscriptions.set(entity, new Set());
     }
@@ -965,8 +961,7 @@ class PersistenceStoreImpl implements PersistenceStore {
         }
       }
 
-      const scopeId =
-        entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+      const scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
 
       try {
         await this.db.update(entity, id, data);
@@ -1009,10 +1004,7 @@ class PersistenceStoreImpl implements PersistenceStore {
                 throw createErr;
               }
               if (!isTransientSyncError(createErr)) {
-                console.error(
-                  `[PersistenceStore] Failed to sync upsert ${entity}:`,
-                  createErr
-                );
+                console.error(`[PersistenceStore] Failed to sync upsert ${entity}:`, createErr);
               }
             }
           } else if (!isTransientSyncError(err)) {
@@ -1048,8 +1040,7 @@ class PersistenceStoreImpl implements PersistenceStore {
         }
       }
 
-      const scopeId =
-        entity === rootEntity ? id : (existing[scopeField] as string | undefined);
+      const scopeId = entity === rootEntity ? id : (existing[scopeField] as string | undefined);
 
       try {
         await this.db.delete(entity, id);
@@ -1379,10 +1370,7 @@ class PersistenceStoreImpl implements PersistenceStore {
     }
   }
 
-  async readLocalState(
-    entity: string,
-    id: string
-  ): Promise<Record<string, unknown> | null> {
+  async readLocalState(entity: string, id: string): Promise<Record<string, unknown> | null> {
     return this.serialized('readLocalState', async () => {
       if (!this.db) return null;
       try {
@@ -1443,10 +1431,7 @@ class PersistenceStoreImpl implements PersistenceStore {
   }
 
   async setCachedUser(user: Record<string, unknown>): Promise<void> {
-    sessionStorage.setItem(
-      'stitch_cached_user',
-      JSON.stringify({ user, cachedAt: Date.now() })
-    );
+    sessionStorage.setItem('stitch_cached_user', JSON.stringify({ user, cachedAt: Date.now() }));
     sessionStorage.removeItem('stitch_pending_logout');
   }
 

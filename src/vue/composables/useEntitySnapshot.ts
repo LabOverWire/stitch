@@ -13,7 +13,7 @@ function resolveMemory(storeOrMemory: MemoryStore | Store): MemoryStore {
 export function useEntitySnapshot(
   store: MemoryStore | Store,
   scopeId: MaybeRefOrGetter<string>,
-  entity: MaybeRefOrGetter<string>,
+  entity: MaybeRefOrGetter<string>
 ): ShallowRef<Record<string, unknown>[]> {
   const memory = resolveMemory(store);
   const snapshot = shallowRef<Record<string, unknown>[]>(EMPTY_ARRAY);
@@ -31,7 +31,7 @@ export function useEntitySnapshot(
       });
       onCleanup(unsubscribe);
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   return snapshot;
@@ -40,7 +40,7 @@ export function useEntitySnapshot(
 export function useEntitySnapshotAsMap(
   store: MemoryStore | Store,
   scopeId: MaybeRefOrGetter<string>,
-  entity: MaybeRefOrGetter<string>,
+  entity: MaybeRefOrGetter<string>
 ): ShallowRef<Record<string, Record<string, unknown>>> {
   const memory = resolveMemory(store);
   const snapshot = shallowRef<Record<string, Record<string, unknown>>>(EMPTY_MAP);
@@ -58,7 +58,7 @@ export function useEntitySnapshotAsMap(
       });
       onCleanup(unsubscribe);
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   return snapshot;
