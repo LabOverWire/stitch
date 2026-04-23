@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 CLAUDE.md
 .claude/
+.playwright-mcp/
+.vitest-attachments/
+tests/**/__screenshots__/
