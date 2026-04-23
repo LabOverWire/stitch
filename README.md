@@ -8,12 +8,11 @@ Reactive state synchronization library. Bridges an in-memory store, IndexedDB pe
 npm install @laboverwire/stitch
 ```
 
-Peer dependencies (install whichever framework you use):
+Optional peer dependencies (install whichever framework you use):
 
 ```bash
 npm install react@^19.0.0    # for React bindings
 npm install vue@^3.3.0       # for Vue bindings
-npm install mqdb-wasm@^0.2.0 mqtt5-wasm@^1.0.0
 ```
 
 ## Quick Start (React)
@@ -28,18 +27,18 @@ const config: StoreConfig = {
   entities: {
     project: {
       fields: [
-        { name: 'id', type: 'TEXT' },
-        { name: 'name', type: 'TEXT' },
+        { name: 'id', type: 'string' },
+        { name: 'name', type: 'string' },
       ],
     },
     task: {
       fields: [
-        { name: 'id', type: 'TEXT' },
-        { name: 'projectId', type: 'TEXT' },
-        { name: 'title', type: 'TEXT' },
-        { name: 'done', type: 'INTEGER' },
+        { name: 'id', type: 'string' },
+        { name: 'projectId', type: 'string' },
+        { name: 'title', type: 'string' },
+        { name: 'done', type: 'boolean' },
       ],
-      foreignKeys: [{ field: 'projectId', references: { entity: 'project', field: 'id' } }],
+      foreignKeys: [{ field: 'projectId', references: 'project', onDelete: 'cascade' }],
     },
   },
   scope: {
