@@ -1,4 +1,4 @@
-import type { WasmDatabase } from 'mqdb-wasm';
+import type { Database } from 'mqdb-wasm';
 import type initWasm from 'mqdb-wasm';
 import type { StoreConfig, MutationEvent, MemoryStore } from './types.ts';
 
@@ -39,13 +39,13 @@ function topologicalDeleteOrder(entities: string[], config: StoreConfig): string
 }
 
 class MemoryStoreImpl implements MemoryStore {
-  private _db: WasmDatabase | null = null;
+  private _db: Database | null = null;
   private _dbReady = false;
   private _initPromise: Promise<void> | null = null;
   private _wasmReady = false;
   private _corrupted = false;
   private _initWasm: typeof initWasm | null = null;
-  private _WasmDatabase: (new () => WasmDatabase) | null = null;
+  private _Database: (new () => Database) | null = null;
 
   private readonly config: StoreConfig;
   private readonly allEntities: string[];
@@ -93,7 +93,7 @@ class MemoryStoreImpl implements MemoryStore {
       if (!this._initWasm) {
         const mod = await import('mqdb-wasm');
         this._initWasm = mod.default;
-        this._WasmDatabase = mod.WasmDatabase as unknown as new () => WasmDatabase;
+        this._Database = mod.Database;
       }
       await this._initWasm!();
       this._wasmReady = true;
@@ -110,8 +110,8 @@ class MemoryStoreImpl implements MemoryStore {
 
   private initDb(): void {
     if (this._dbReady) return;
-    if (!this._wasmReady || !this._WasmDatabase) return;
-    this._db = new this._WasmDatabase();
+    if (!this._wasmReady || !this._Database) return;
+    this._db = new this._Database();
     this._dbReady = true;
     this.registerSchemas();
     this.setupSubscriptions();
@@ -132,7 +132,7 @@ class MemoryStoreImpl implements MemoryStore {
     };
   }
 
-  private get db(): WasmDatabase {
+  private get db(): Database {
     if (this._corrupted) {
       if (!this.tryRecover()) {
         throw new Error('WASM database is corrupted');
@@ -146,16 +146,16 @@ class MemoryStoreImpl implements MemoryStore {
   }
 
   private tryRecover(): boolean {
-    if (!this._wasmReady || !this._WasmDatabase) return false;
+    if (!this._wasmReady || !this._Database) return false;
     try {
-      const testDb = new this._WasmDatabase();
-      testDb.list_sync('__test__', {});
+      const testDb = new this._Database();
+      testDb.listSync('__test__', {});
       testDb.free();
     } catch {
       return false;
     }
     try {
-      this._db = new this._WasmDatabase();
+      this._db = new this._Database();
       this._corrupted = false;
       this._dbReady = true;
       this.registerSchemas();
@@ -213,13 +213,13 @@ class MemoryStoreImpl implements MemoryStore {
     }
   }
 
-  private registerSchemasOn(db: WasmDatabase): void {
+  private registerSchemasOn(db: Database): void {
     const { entities } = this.config;
     for (const [entity, definition] of Object.entries(entities)) {
-      db.add_schema(entity, definition);
+      db.addSchema(entity, definition);
       if (definition.indexes) {
         for (const field of definition.indexes) {
-          db.add_index(entity, [field]);
+          db.addIndex(entity, [field]);
         }
       }
     }
@@ -384,19 +384,19 @@ class MemoryStoreImpl implements MemoryStore {
     if (!this._dbReady || this._corrupted) return [];
     const scopeField = this.config.scope.scopeField;
     try {
-      return this._db!.list_sync(entity, {
+      return this._db!.listSync(entity, {
         filters: [{ field: scopeField, op: 'eq', value: scopeId }],
       }) as Record<string, unknown>[];
     } catch (err) {
       if (this.isWasmCorrupted(err)) {
-        console.error(`[MemoryStore] WASM corruption in list_sync:`, err);
+        console.error(`[MemoryStore] WASM corruption in listSync:`, err);
         this._corrupted = true;
         this.notifyCorruption();
         if (this.tryRecover()) {
           return [];
         }
       } else {
-        console.error(`[MemoryStore] list_sync failed for ${entity}:`, err);
+        console.error(`[MemoryStore] listSync failed for ${entity}:`, err);
       }
       return [];
     }
@@ -441,7 +441,7 @@ class MemoryStoreImpl implements MemoryStore {
     try {
       this.originTag = tag ?? null;
       const scopeField = this.config.scope.scopeField;
-      this.db.create_sync(entity, stripNulls({ ...data, [scopeField]: scopeId }));
+      this.db.createSync(entity, stripNulls({ ...data, [scopeField]: scopeId }));
     } catch (err) {
       console.error(`[MemoryStore] create ${entity} failed:`, err);
     } finally {
@@ -453,7 +453,7 @@ class MemoryStoreImpl implements MemoryStore {
     if (this._corrupted) return;
     try {
       this.originTag = tag ?? null;
-      this.db.update_sync(entity, id, stripNulls(fields));
+      this.db.updateSync(entity, id, stripNulls(fields));
     } catch (err) {
       console.error(`[MemoryStore] update ${entity} failed:`, err);
     } finally {
@@ -464,7 +464,7 @@ class MemoryStoreImpl implements MemoryStore {
   read(entity: string, id: string): Record<string, unknown> | null {
     if (this._corrupted) return null;
     try {
-      return this.db.read_sync(entity, id) as Record<string, unknown>;
+      return this.db.readSync(entity, id) as Record<string, unknown>;
     } catch {
       return null;
     }
@@ -478,7 +478,7 @@ class MemoryStoreImpl implements MemoryStore {
       if (!record) return;
       const scopeField = this.config.scope.scopeField;
       this.pendingDeleteContext = { scopeId: record[scopeField] as string };
-      this.db.delete_sync(entity, id);
+      this.db.deleteSync(entity, id);
     } catch (err) {
       console.error(`[MemoryStore] delete ${entity} failed:`, err);
     } finally {
@@ -492,8 +492,8 @@ class MemoryStoreImpl implements MemoryStore {
   }
 
   loadScope(scopeId: string, data: Record<string, Record<string, unknown>[]>, tag?: string): void {
-    if (!this._WasmDatabase) return;
-    const newDb = new this._WasmDatabase();
+    if (!this._Database) return;
+    const newDb = new this._Database();
     this.registerSchemasOn(newDb);
 
     const scopeField = this.config.scope.scopeField;
@@ -502,7 +502,7 @@ class MemoryStoreImpl implements MemoryStore {
       for (const record of records) {
         try {
           const rec = { ...record, [scopeField]: scopeId };
-          newDb.create_sync(entity, rec);
+          newDb.createSync(entity, rec);
         } catch (err) {
           console.error(`[MemoryStore] loadScope create ${entity} failed:`, err);
         }
@@ -577,7 +577,7 @@ class MemoryStoreImpl implements MemoryStore {
         for (const record of records) {
           try {
             this.pendingDeleteContext = { scopeId };
-            this.db.delete_sync(entity, record.id as string);
+            this.db.deleteSync(entity, record.id as string);
           } catch {
             // cascade
           } finally {
