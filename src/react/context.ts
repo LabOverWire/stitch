@@ -1,27 +1,30 @@
 import { createContext, useContext } from 'react';
 import type { ConnectionStatus, Store } from '../types.ts';
 
+/** @deprecated Use {@link StoreContextValue} — the legacy context will be removed in 0.3. */
 export interface StitchContextValue {
   initialized: boolean;
   connectionStatus: ConnectionStatus;
   error: Error | null;
 }
 
+/** @deprecated Use {@link StoreContext} — the legacy context will be removed in 0.3. */
 export const StitchContext = createContext<StitchContextValue>({
   initialized: false,
   connectionStatus: 'offline',
   error: null,
 });
 
+/** @deprecated Use {@link useStore} — the legacy hook will be removed in 0.3. */
 export function useStitch(): StitchContextValue {
   return useContext(StitchContext);
 }
 
-/** @deprecated Use StitchContextValue */
+/** @deprecated Use {@link StoreContextValue} — will be removed in 0.3. */
 export type SyncStoreContextValue = StitchContextValue;
-/** @deprecated Use StitchContext */
+/** @deprecated Use {@link StoreContext} — will be removed in 0.3. */
 export const SyncStoreContext = StitchContext;
-/** @deprecated Use useStitch */
+/** @deprecated Use {@link useStore} — will be removed in 0.3. */
 export const useSyncStore = useStitch;
 
 export interface StoreContextValue {

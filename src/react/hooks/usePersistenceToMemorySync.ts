@@ -4,6 +4,10 @@ import { useStitch } from '../context.ts';
 
 const REMOTE_TAG = 'remote';
 
+/**
+ * @deprecated `createStore()` wires persistence → memory sync internally; this hook is
+ * only needed with the legacy `StitchProvider` path. Will be removed in 0.3.
+ */
 export function usePersistenceToMemorySync(
   persistence: PersistenceStore,
   memory: MemoryStore,

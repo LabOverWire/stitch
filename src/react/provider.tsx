@@ -21,6 +21,10 @@ interface StitchProviderProps {
   children: ReactNode;
 }
 
+/**
+ * @deprecated Use {@link StoreProvider} with a store created by `createStore`. The
+ * legacy two-store composition will be removed in 0.3.
+ */
 export function StitchProvider({
   memoryStore,
   persistenceStore,
@@ -170,7 +174,7 @@ export function StitchProvider({
   return <StitchContext.Provider value={contextValue}>{children}</StitchContext.Provider>;
 }
 
-/** @deprecated Use StitchProvider */
+/** @deprecated Use {@link StoreProvider} — will be removed in 0.3. */
 export const SyncStoreProvider = StitchProvider;
 
 interface StoreProviderProps {

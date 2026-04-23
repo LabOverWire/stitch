@@ -5,3 +5,7 @@ export { useStore } from './composables/useStore.ts';
 export { useEntitySnapshot, useEntitySnapshotAsMap } from './composables/useEntitySnapshot.ts';
 export { useConnectionStatus } from './composables/useConnectionStatus.ts';
 export { useSyncScope } from './composables/useSyncScope.ts';
+export { useRootEntityList } from './composables/useRootEntityList.ts';
+export { useScopedEntities } from './composables/useScopedEntities.ts';
+export { useChildCounts } from './composables/useChildCounts.ts';
+export { useTopLevelEntities } from './composables/useTopLevelEntities.ts';
