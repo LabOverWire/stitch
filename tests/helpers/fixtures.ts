@@ -9,7 +9,6 @@ export function uniqueDbName(prefix = 'stitch-test'): string {
 
 export function projectTaskConfig(overrides?: Partial<StoreConfig>): StoreConfig {
   return {
-    dbName: uniqueDbName(),
     entities: {
       project: {
         fields: [

@@ -46,7 +46,7 @@ export function useChildCounts(store: Store, entity: string): ShallowRef<Map<str
           });
       };
 
-      unsubscribe = s.subscribe(ent, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+      unsubscribe = s.subscribeToEntity(ent, (entityData, op) => {
         if (entityData === null) {
           fetchAll();
           return;

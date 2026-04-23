@@ -6,6 +6,7 @@ type EntitySubscriptionCallback = (entity: unknown, op: 'insert' | 'update' | 'd
 
 class PersistenceLayerImpl implements PersistenceLayer {
   private db: Database | null = null;
+  private dbName: string | null = null;
   private dbRecovering = false;
   private _dbNeedsRecovery = false;
   private shuttingDown = false;
@@ -41,6 +42,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
     }
     try {
       this.db = await wasmMod.Database.openPersistent(dbName);
+      this.dbName = dbName;
     } catch (err) {
       throw wrapWasmError(`openPersistent:${dbName}`, err);
     }
@@ -421,8 +423,9 @@ class PersistenceLayerImpl implements PersistenceLayer {
     this.dbRecovering = true;
     const oldDb = this.db;
     try {
+      if (!this.dbName) return false;
       const wasmMod = await import('mqdb-wasm');
-      this.db = await wasmMod.Database.openPersistent(this.config.dbName);
+      this.db = await wasmMod.Database.openPersistent(this.dbName);
       await this.setupSchemas();
       this.setupWasmSubscriptions();
       return true;

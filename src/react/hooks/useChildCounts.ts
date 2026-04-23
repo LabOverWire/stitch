@@ -1,22 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { PersistenceStore, StoreConfig, Store } from '../../types.ts';
-import { isStore } from '../../internal-utils.ts';
+import type { Store } from '../../types.ts';
 
-export function useChildCounts(store: Store, entity: string): Map<string, number>;
-export function useChildCounts(
-  store: PersistenceStore,
-  config: StoreConfig,
-  entity: string
-): Map<string, number>;
-export function useChildCounts(
-  store: PersistenceStore | Store,
-  configOrEntity: StoreConfig | string,
-  entityArg?: string
-): Map<string, number> {
-  const entity = typeof configOrEntity === 'string' ? configOrEntity : entityArg!;
-  const scopeField = isStore(store)
-    ? store.config.scope.scopeField
-    : (configOrEntity as StoreConfig).scope.scopeField;
+export function useChildCounts(store: Store, entity: string): Map<string, number> {
+  const scopeField = store.config.scope.scopeField;
 
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
 
@@ -61,7 +47,7 @@ export function useChildCounts(
         });
     };
 
-    const unsubscribe = store.subscribe(
+    const unsubscribe = store.subscribeToEntity(
       entity,
       (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
         if (entityData === null) {

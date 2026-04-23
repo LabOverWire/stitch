@@ -58,11 +58,13 @@ class PersistenceStoreImpl implements PersistenceStore {
   private suppressEntityNotifications = false;
   private shuttingDown = false;
   private readonly config: StoreConfig;
+  private readonly dbName: string;
   private readonly allSyncedEntities: string[];
   private readonly allLocalEntities: string[];
 
-  constructor(config: StoreConfig) {
+  constructor(config: StoreConfig, dbName: string) {
     this.config = config;
+    this.dbName = dbName;
     this.allSyncedEntities = [
       config.scope.rootEntity,
       ...config.scope.childEntities,
@@ -112,7 +114,7 @@ class PersistenceStoreImpl implements PersistenceStore {
       if (!this.db) {
         const wasmMod = await import('mqdb-wasm');
         await wasmMod.default();
-        this.db = await wasmMod.Database.openPersistent(this.config.dbName);
+        this.db = await wasmMod.Database.openPersistent(this.dbName);
         await this.setupSchemas();
         this.setupWasmSubscriptions();
       }
@@ -606,7 +608,7 @@ class PersistenceStoreImpl implements PersistenceStore {
     const oldDb = this.db;
     try {
       const wasmMod = await import('mqdb-wasm');
-      this.db = await wasmMod.Database.openPersistent(this.config.dbName);
+      this.db = await wasmMod.Database.openPersistent(this.dbName);
       await this.setupSchemas();
       this.setupWasmSubscriptions();
       return true;
@@ -1494,6 +1496,6 @@ class PersistenceStoreImpl implements PersistenceStore {
   }
 }
 
-export function createPersistenceStore(config: StoreConfig): PersistenceStore {
-  return new PersistenceStoreImpl(config);
+export function createPersistenceStore(config: StoreConfig, dbName: string): PersistenceStore {
+  return new PersistenceStoreImpl(config, dbName);
 }

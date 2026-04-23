@@ -30,7 +30,7 @@ describe('memory-store.loadScope: subscriber notification', () => {
       callCount += 1;
     });
 
-    await store.openScope(projectId);
+    await store.replaceScope(projectId);
 
     // After loadScope runs, any scope subscriber should have been notified at least once
     // so consumers can re-read getSnapshot and get the populated data.
@@ -58,7 +58,7 @@ describe('memory-store.loadScope: subscriber notification', () => {
     const store = createStore(config, { persistence: { dbName } });
     await store.initialize();
     const [root] = await store.listRootEntities();
-    await store.openScope(root.id as string);
+    await store.replaceScope(root.id as string);
 
     const tasks = store.getSnapshot('task', root.id as string);
     expect(tasks).toHaveLength(1);

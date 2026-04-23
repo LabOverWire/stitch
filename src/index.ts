@@ -24,6 +24,9 @@ export type {
   MutationSender,
   PendingMutation,
   ConsolidatedMutation,
+  EntitySchema,
+  DefaultSchema,
+  EntityKey,
 } from './types.ts';
 
 /**

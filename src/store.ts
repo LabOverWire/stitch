@@ -8,7 +8,6 @@ import type {
   OfflineQueue,
   LocalAccessor,
   MutationSender,
-  MutationEvent,
   ConnectionStatus,
   SortField,
   ListFilter,
@@ -439,29 +438,14 @@ class StoreImpl implements Store {
     return this.memory.subscribeToScope(scopeId, entity, callback);
   }
 
-  subscribeToEntity(entity: string, callback: () => void): () => void {
-    const memoryUnsub = this.memory.subscribeToEntity(entity, callback);
-    if (!this._persistence) return memoryUnsub;
-    const persistenceUnsub = this._persistence.subscribe(entity, (data) => {
-      if (data === null) return;
-      callback();
-    });
-    return () => {
-      memoryUnsub();
-      persistenceUnsub();
-    };
-  }
-
-  onMutation(listener: (event: MutationEvent) => void): () => void {
-    return this.memory.onMutation(listener);
-  }
-
-  subscribe(
+  subscribeToEntity(
     entity: string,
-    callback: (data: unknown, op: 'insert' | 'update' | 'delete') => void
+    callback: (data: Record<string, unknown> | null, op: 'insert' | 'update' | 'delete') => void
   ): () => void {
     if (this._persistence) {
-      return this._persistence.subscribe(entity, callback);
+      return this._persistence.subscribe(entity, (data, op) => {
+        callback((data ?? null) as Record<string, unknown> | null, op);
+      });
     }
 
     const memUnsub = this.memory.onMutation((event) => {
@@ -470,7 +454,13 @@ class StoreImpl implements Store {
       callback(event.data, op as 'insert' | 'update' | 'delete');
     });
 
-    const entry = { entity, callback, memoryUnsub: memUnsub };
+    const entry = {
+      entity,
+      callback: (data: unknown, op: 'insert' | 'update' | 'delete') => {
+        callback((data ?? null) as Record<string, unknown> | null, op);
+      },
+      memoryUnsub: memUnsub,
+    };
     this._earlySubscribers.push(entry);
 
     return () => {
@@ -488,7 +478,7 @@ class StoreImpl implements Store {
     this.memory.endBatch();
   }
 
-  async openScope(scopeId: string): Promise<void> {
+  async replaceScope(scopeId: string): Promise<void> {
     if (this.currentScopeId === scopeId) return;
 
     const { rootEntity, childEntities } = this.config.scope;
@@ -898,6 +888,8 @@ class StoreImpl implements Store {
   }
 }
 
-export function createStore(config: StoreConfig, options?: StoreOptions): Store {
-  return new StoreImpl(config, options ?? {});
+export function createStore<
+  S extends import('./types.ts').EntitySchema = import('./types.ts').DefaultSchema,
+>(config: StoreConfig, options?: StoreOptions): Store<S> {
+  return new StoreImpl(config, options ?? {}) as unknown as Store<S>;
 }

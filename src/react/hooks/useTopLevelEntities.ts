@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { PersistenceStore, Store } from '../../types.ts';
+import type { Store } from '../../types.ts';
 
 type ListItem = Record<string, unknown> & { id: string };
 
@@ -28,7 +28,7 @@ function applyEvent(
 }
 
 export function useTopLevelEntities(
-  store: PersistenceStore | Store,
+  store: Store,
   entity: string
 ): {
   items: ListItem[];
@@ -64,7 +64,7 @@ export function useTopLevelEntities(
         });
     };
 
-    const unsubscribe = store.subscribe(
+    const unsubscribe = store.subscribeToEntity(
       entity,
       (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
         if (entityData === null) {

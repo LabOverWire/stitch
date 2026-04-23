@@ -7,7 +7,7 @@ export {
   useSyncStore,
 } from './context.ts';
 export type { StitchContextValue, SyncStoreContextValue, StoreContextValue } from './context.ts';
-export { StitchProvider, SyncStoreProvider, StoreProvider } from './provider.tsx';
+export { StitchProvider, SyncStoreProvider, StoreProvider, AuthProvider } from './provider.tsx';
 export { useEntitySnapshot, useEntitySnapshotAsMap } from './hooks/useEntitySnapshot.ts';
 export { useConnectionStatus } from './hooks/useConnectionStatus.ts';
 export { useScopedEntities } from './hooks/useScopedEntities.ts';

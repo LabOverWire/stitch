@@ -19,7 +19,6 @@ export interface EntityDefinition {
 }
 
 export interface StoreConfig {
-  dbName: string;
   entities: Record<string, EntityDefinition>;
   scope: {
     rootEntity: string;
@@ -283,40 +282,71 @@ export interface StoreOptions {
   remote?: RemoteConfig;
 }
 
-export interface Store {
+/**
+ * A schema maps entity name → record type. Users declare their own:
+ *
+ * ```ts
+ * type Schema = { project: Project; task: Task };
+ * const store = createStore<Schema>(config, options);
+ * ```
+ *
+ * When no generic argument is supplied, methods fall back to `Record<string, unknown>`.
+ */
+export type EntitySchema = Record<string, object>;
+export type DefaultSchema = Record<string, Record<string, unknown>>;
+export type EntityKey<S extends EntitySchema> = keyof S & string;
+
+export interface Store<S extends EntitySchema = DefaultSchema> {
   initialize(): Promise<void>;
   destroy(): void;
   readonly ready: boolean;
 
-  read(entity: string, id: string): Record<string, unknown> | null;
-  getSnapshot(entity: string, scopeId: string): Record<string, unknown>[];
-  getSnapshotAsMap(entity: string, scopeId: string): Record<string, Record<string, unknown>>;
+  read<K extends EntityKey<S>>(entity: K, id: string): S[K] | null;
+  getSnapshot<K extends EntityKey<S>>(entity: K, scopeId: string): S[K][];
+  getSnapshotAsMap<K extends EntityKey<S>>(entity: K, scopeId: string): Record<string, S[K]>;
 
-  list(entity: string, filter?: ListFilter): Promise<Record<string, unknown>[]>;
+  list<K extends EntityKey<S>>(entity: K, filter?: ListFilter): Promise<S[K][]>;
   listRootEntities(sort?: SortField[]): Promise<Record<string, unknown>[]>;
-  getChildCount(entity: string, scopeId: string): Promise<number>;
+  getChildCount<K extends EntityKey<S>>(entity: K, scopeId: string): Promise<number>;
 
-  create(
-    entity: string,
+  create<K extends EntityKey<S>>(
+    entity: K,
     scopeId: string,
-    data: Record<string, unknown>,
+    data: Partial<S[K]> & Record<string, unknown>,
     tag?: string
   ): Promise<string>;
-  update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): Promise<void>;
-  delete(entity: string, id: string, tag?: string): Promise<void>;
+  update<K extends EntityKey<S>>(
+    entity: K,
+    id: string,
+    fields: Partial<S[K]>,
+    tag?: string
+  ): Promise<void>;
+  delete<K extends EntityKey<S>>(entity: K, id: string, tag?: string): Promise<void>;
 
-  subscribeToScope(scopeId: string, entity: string, callback: () => void): () => void;
-  subscribeToEntity(entity: string, callback: () => void): () => void;
-  onMutation(listener: (event: MutationEvent) => void): () => void;
-  subscribe(
-    entity: string,
-    callback: (data: unknown, op: 'insert' | 'update' | 'delete') => void
+  subscribeToScope<K extends EntityKey<S>>(
+    scopeId: string,
+    entity: K,
+    callback: () => void
+  ): () => void;
+  subscribeToEntity<K extends EntityKey<S>>(
+    entity: K,
+    callback: (data: S[K] | null, op: 'insert' | 'update' | 'delete') => void
   ): () => void;
 
   beginBatch(): void;
   endBatch(): void;
 
-  openScope(scopeId: string): Promise<void>;
+  /**
+   * Load a scope's data into the in-memory store, replacing whatever scope was
+   * previously active. Fetches the root entity and its children from persistence
+   * (and the server, if remote sync is configured), reconciles with local state,
+   * and subscribes to live mutations for the new scope.
+   *
+   * The in-memory WASM database is rebuilt on each call — only one scope is live
+   * at a time. Use `closeScope(previousId)` before switching if you need a clean
+   * teardown signal for the old scope.
+   */
+  replaceScope(scopeId: string): Promise<void>;
   closeScope(scopeId: string): Promise<void>;
   loadScope(scopeId: string, data: Record<string, Record<string, unknown>[]>): void;
   clearScope(scopeId: string): void;

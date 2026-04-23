@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { PersistenceStore, Store } from '../../types.ts';
+import type { Store } from '../../types.ts';
 
 export function useSyncScope(
-  store: PersistenceStore | Store,
+  store: Store,
   scopeId: string | null
 ): {
   syncing: boolean;
@@ -26,7 +26,7 @@ export function useSyncScope(
     setSyncError(null);
 
     try {
-      await store.openScope(scopeId);
+      await store.replaceScope(scopeId);
       if (currentScopeIdRef.current === scopeId) {
         openedRef.current = scopeId;
       }

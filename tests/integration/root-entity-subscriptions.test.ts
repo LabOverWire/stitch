@@ -29,7 +29,7 @@ describe('root entity: subscriptions and snapshot', () => {
     await store.initialize();
 
     const id = await store.create('project', '', { name: 'P1' });
-    await store.openScope(id);
+    await store.replaceScope(id);
 
     const snapshot = store.getSnapshot('project', id);
     expect(snapshot).toHaveLength(1);
@@ -62,7 +62,7 @@ describe('root entity: subscriptions and snapshot', () => {
       fires += 1;
     });
 
-    await store.openScope(scopeId);
+    await store.replaceScope(scopeId);
 
     expect(fires).toBeGreaterThan(0);
     const snap = store.getSnapshot('project', scopeId);

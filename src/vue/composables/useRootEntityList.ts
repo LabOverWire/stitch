@@ -60,7 +60,7 @@ export function useRootEntityList(store: Store): {
           });
       };
 
-      unsubscribe = s.subscribe(rootEntity, (entity: unknown, op) => {
+      unsubscribe = s.subscribeToEntity(rootEntity, (entity, op) => {
         if (entity === null) {
           fetchAll();
           return;

@@ -43,7 +43,7 @@ export function useTopLevelEntities(
           });
       };
 
-      unsubscribe = s.subscribe(ent, (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
+      unsubscribe = s.subscribeToEntity(ent, (entityData, op) => {
         if (entityData === null) {
           fetchAll();
           return;

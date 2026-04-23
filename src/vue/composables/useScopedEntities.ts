@@ -77,22 +77,19 @@ export function useScopedEntities(
           });
       };
 
-      unsubscribe = store.subscribe(
-        ent,
-        (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
-          if (entityData === null) {
-            fetchAll();
-            return;
-          }
-          const rec = entityData as Record<string, unknown>;
-          if (rec[effectiveScopeField] !== sid) return;
-          if (!fetched) {
-            buffer.push({ entity: entityData, op });
-            return;
-          }
-          data.value = applyEvent(data.value, entityData, op);
+      unsubscribe = store.subscribeToEntity(ent, (entityData, op) => {
+        if (entityData === null) {
+          fetchAll();
+          return;
         }
-      );
+        const rec = entityData as Record<string, unknown>;
+        if (rec[effectiveScopeField] !== sid) return;
+        if (!fetched) {
+          buffer.push({ entity: entityData, op });
+          return;
+        }
+        data.value = applyEvent(data.value, entityData, op);
+      });
 
       fetchAll();
 

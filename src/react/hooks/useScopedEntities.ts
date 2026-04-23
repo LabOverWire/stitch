@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { PersistenceStore, Store } from '../../types.ts';
-import { isStore } from '../../internal-utils.ts';
+import type { Store } from '../../types.ts';
 
 function applyEvent(
   prev: Record<string, unknown>[],
@@ -27,18 +26,16 @@ function applyEvent(
 }
 
 export function useScopedEntities(
-  store: PersistenceStore | Store,
+  store: Store,
   scopeId: string | null,
-  entity: string,
-  scopeField?: string
+  entity: string
 ): {
   data: Record<string, unknown>[];
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 } {
-  const effectiveScopeField =
-    scopeField ?? (isStore(store) ? store.config.scope.scopeField : (scopeField ?? ''));
+  const effectiveScopeField = store.config.scope.scopeField;
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -96,7 +93,7 @@ export function useScopedEntities(
         });
     };
 
-    const unsubscribe = store.subscribe(
+    const unsubscribe = store.subscribeToEntity(
       entity,
       (entityData: unknown, op: 'insert' | 'update' | 'delete') => {
         if (entityData === null) {

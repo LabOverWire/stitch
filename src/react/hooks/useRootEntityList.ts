@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { PersistenceStore, StoreConfig, Store } from '../../types.ts';
-import { isStore } from '../../internal-utils.ts';
+import type { Store } from '../../types.ts';
 
 type ListItem = Record<string, unknown> & { id: string };
 
@@ -28,16 +27,13 @@ function applyEvent(
   }
 }
 
-export function useRootEntityList(
-  store: PersistenceStore | Store,
-  config?: StoreConfig
-): {
+export function useRootEntityList(store: Store): {
   items: ListItem[];
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 } {
-  const rootEntity = isStore(store) ? store.config.scope.rootEntity : config!.scope.rootEntity;
+  const rootEntity = store.config.scope.rootEntity;
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +80,7 @@ export function useRootEntityList(
         });
     };
 
-    const unsubscribe = store.subscribe(
+    const unsubscribe = store.subscribeToEntity(
       rootEntity,
       (entity: unknown, op: 'insert' | 'update' | 'delete') => {
         if (entity === null) {

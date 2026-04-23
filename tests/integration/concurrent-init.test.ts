@@ -23,13 +23,9 @@ describe('store.initialize: concurrent calls are safe', () => {
     });
 
     const events: Array<{ op: string; id: string | null }> = [];
-    const unsubscribe = store2.subscribe(
-      'project',
-      (data: unknown, op: 'insert' | 'update' | 'delete') => {
-        const record = data as { id?: string } | null;
-        events.push({ op, id: record?.id ?? null });
-      }
-    );
+    const unsubscribe = store2.subscribeToEntity('project', (data, op) => {
+      events.push({ op, id: data?.id as string | null | undefined ?? null });
+    });
 
     // Kick off two concurrent inits and one create while init is still in flight.
     const initA = store2.initialize();

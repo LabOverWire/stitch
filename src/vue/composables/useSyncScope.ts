@@ -1,9 +1,9 @@
 import { watch, shallowRef, toValue, onUnmounted } from 'vue';
 import type { ShallowRef, MaybeRefOrGetter } from 'vue';
-import type { PersistenceStore, Store } from '../../types.ts';
+import type { Store } from '../../types.ts';
 
 export function useSyncScope(
-  store: PersistenceStore | Store,
+  store: Store,
   scopeId: MaybeRefOrGetter<string | null>
 ): {
   syncing: ShallowRef<boolean>;
@@ -23,7 +23,7 @@ export function useSyncScope(
     syncError.value = null;
 
     try {
-      await store.openScope(sid);
+      await store.replaceScope(sid);
       if (toValue(scopeId) === sid) {
         openedScopeId = sid;
       }
