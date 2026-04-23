@@ -46,6 +46,7 @@ class StoreImpl implements Store {
   private _queue: OfflineQueueExt | null = null;
   private readonly options: StoreOptions;
   private _ready = false;
+  private _initPromise: Promise<void> | null = null;
   private _connectionStatus: ConnectionStatus = 'offline';
   private statusListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private currentScopeId: string | null = null;
@@ -85,6 +86,15 @@ class StoreImpl implements Store {
   }
 
   async initialize(): Promise<void> {
+    if (this._ready) return;
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = this.doInitialize().finally(() => {
+      this._initPromise = null;
+    });
+    return this._initPromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     if (this._ready) return;
 
     await this.memory.ensureReady();
@@ -159,6 +169,7 @@ class StoreImpl implements Store {
     this._persistence?.close();
     this._remote?.disconnect();
     this._ready = false;
+    this._initPromise = null;
   }
 
   read(entity: string, id: string): Record<string, unknown> | null {
@@ -429,7 +440,16 @@ class StoreImpl implements Store {
   }
 
   subscribeToEntity(entity: string, callback: () => void): () => void {
-    return this.memory.subscribeToEntity(entity, callback);
+    const memoryUnsub = this.memory.subscribeToEntity(entity, callback);
+    if (!this._persistence) return memoryUnsub;
+    const persistenceUnsub = this._persistence.subscribe(entity, (data) => {
+      if (data === null) return;
+      callback();
+    });
+    return () => {
+      memoryUnsub();
+      persistenceUnsub();
+    };
   }
 
   onMutation(listener: (event: MutationEvent) => void): () => void {
@@ -618,6 +638,7 @@ class StoreImpl implements Store {
     this._persistence = null;
     this._queue = null;
     this._ready = false;
+    this._initPromise = null;
     this.currentScopeId = null;
     this._authenticatedUser = null;
     this.initialSyncDone = false;

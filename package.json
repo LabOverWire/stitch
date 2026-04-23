@@ -1,6 +1,6 @@
 {
   "name": "@laboverwire/stitch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "private": true,
   "main": "src/index.ts",
@@ -11,7 +11,10 @@
     "lint:fix": "eslint --fix .",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
-    "check": "npm run type-check && npm run lint && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "check": "npm run type-check && npm run lint && npm run format:check && npm test",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -44,15 +47,20 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
+    "@vitest/browser": "^4.1.5",
+    "@vitest/browser-playwright": "^4.1.5",
+    "@vitest/ui": "^4.1.5",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "playwright": "^1.59.1",
     "prettier": "^3.8.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.0",
+    "vitest": "^4.1.5",
     "vue": "^3.3.0"
   }
 }

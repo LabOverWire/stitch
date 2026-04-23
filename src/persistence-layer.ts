@@ -35,7 +35,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
     const wasmMod = await import('mqdb-wasm');
     await wasmMod.default();
     this.db = await wasmMod.Database.openPersistent(dbName);
-    this.setupSchemas();
+    await this.setupSchemas();
     this.setupWasmSubscriptions();
   }
 
@@ -44,6 +44,13 @@ class PersistenceLayerImpl implements PersistenceLayer {
     this._opQueue = Promise.resolve();
     this.unsubscribeAllWasm();
     this.entitySubscriptions.clear();
+    if (this.db) {
+      try {
+        this.db.free();
+      } catch {
+        // db may already be freed
+      }
+    }
     this.db = null;
     this.shuttingDown = false;
   }
@@ -266,30 +273,30 @@ class PersistenceLayerImpl implements PersistenceLayer {
     return null;
   }
 
-  private setupSchemas(): void {
+  private async setupSchemas(): Promise<void> {
     if (!this.db) return;
 
     const { entities, localOnlyEntities } = this.config;
     for (const [entity, definition] of Object.entries(entities)) {
-      this.db.addSchema(entity, definition);
+      await this.db.addSchemaAsync(entity, definition);
       if (definition.foreignKeys) {
         for (const fk of definition.foreignKeys) {
-          this.db.addForeignKey(entity, fk.field, fk.references, 'id', fk.onDelete);
+          await this.db.addForeignKeyAsync(entity, fk.field, fk.references, 'id', fk.onDelete);
         }
       }
       if (definition.indexes) {
         for (const field of definition.indexes) {
-          this.db.addIndex(entity, [field]);
+          await this.db.addIndexAsync(entity, [field]);
         }
       }
     }
 
     if (localOnlyEntities) {
       for (const [entity, definition] of Object.entries(localOnlyEntities)) {
-        this.db.addSchema(entity, definition);
+        await this.db.addSchemaAsync(entity, definition);
         if (definition.indexes) {
           for (const field of definition.indexes) {
-            this.db.addIndex(entity, [field]);
+            await this.db.addIndexAsync(entity, [field]);
           }
         }
       }
@@ -297,7 +304,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
 
     const pendingSyncDef = this.config.localOnlyEntities?.['pending_sync'];
     if (!pendingSyncDef) {
-      this.db.addSchema('pending_sync', {
+      await this.db.addSchemaAsync('pending_sync', {
         fields: [
           { name: 'id', type: 'string', required: true },
           { name: 'op', type: 'string', required: true },
@@ -360,7 +367,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
     try {
       const wasmMod = await import('mqdb-wasm');
       this.db = await wasmMod.Database.openPersistent(this.config.dbName);
-      this.setupSchemas();
+      await this.setupSchemas();
       this.setupWasmSubscriptions();
       return true;
     } catch {

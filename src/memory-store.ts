@@ -75,6 +75,7 @@ class MemoryStoreImpl implements MemoryStore {
   constructor(config: StoreConfig) {
     this.config = config;
     this.allEntities = [
+      config.scope.rootEntity,
       ...config.scope.childEntities,
       ...(config.topLevelEntities?.map((t) => t.entity) ?? []),
     ];
@@ -273,12 +274,15 @@ class MemoryStoreImpl implements MemoryStore {
     }
   ): void {
     this.lastOriginTag = this.originTag;
-    const scopeField = this.config.scope.scopeField;
+    const { rootEntity, scopeField } = this.config.scope;
 
     let scopeId: string | undefined;
     if (event.operation === 'delete') {
-      scopeId = this.pendingDeleteContext?.scopeId;
+      scopeId =
+        this.pendingDeleteContext?.scopeId ?? (entity === rootEntity ? event.id : undefined);
       if (!scopeId) return;
+    } else if (entity === rootEntity) {
+      scopeId = event.id;
     } else {
       scopeId = event.data?.[scopeField] as string | undefined;
       if (!scopeId) return;
@@ -382,10 +386,11 @@ class MemoryStoreImpl implements MemoryStore {
 
   private listRecords(entity: string, scopeId: string): Record<string, unknown>[] {
     if (!this._dbReady || this._corrupted) return [];
-    const scopeField = this.config.scope.scopeField;
+    const { rootEntity, scopeField } = this.config.scope;
+    const filterField = entity === rootEntity ? 'id' : scopeField;
     try {
       return this._db!.listSync(entity, {
-        filters: [{ field: scopeField, op: 'eq', value: scopeId }],
+        filters: [{ field: filterField, op: 'eq', value: scopeId }],
       }) as Record<string, unknown>[];
     } catch (err) {
       if (this.isWasmCorrupted(err)) {
@@ -440,8 +445,10 @@ class MemoryStoreImpl implements MemoryStore {
     if (this._corrupted) return;
     try {
       this.originTag = tag ?? null;
-      const scopeField = this.config.scope.scopeField;
-      this.db.createSync(entity, stripNulls({ ...data, [scopeField]: scopeId }));
+      const { rootEntity, scopeField } = this.config.scope;
+      const record =
+        entity === rootEntity ? stripNulls(data) : stripNulls({ ...data, [scopeField]: scopeId });
+      this.db.createSync(entity, record);
     } catch (err) {
       console.error(`[MemoryStore] create ${entity} failed:`, err);
     } finally {
@@ -517,14 +524,13 @@ class MemoryStoreImpl implements MemoryStore {
     this.clearAllCaches();
 
     this.originTag = tag ?? null;
-    this.beginBatch();
     try {
       for (const entity of this.allEntities) {
         this.bumpVersion(scopeId, entity);
+        this.notifySubscribers(scopeId, entity);
       }
     } finally {
       this.originTag = null;
-      this.endBatch();
     }
   }
 
