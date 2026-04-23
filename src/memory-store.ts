@@ -1,5 +1,6 @@
 import type { Database } from 'mqdb-wasm';
 import type initWasm from 'mqdb-wasm';
+import { wrapWasmError } from './internal-wasm-error.ts';
 import type { StoreConfig, MutationEvent, MemoryStore } from './types.ts';
 
 type SubscriptionCallback = () => void;
@@ -96,7 +97,11 @@ class MemoryStoreImpl implements MemoryStore {
         this._initWasm = mod.default;
         this._Database = mod.Database;
       }
-      await this._initWasm!();
+      try {
+        await this._initWasm!();
+      } catch (err) {
+        throw wrapWasmError('init', err);
+      }
       this._wasmReady = true;
       this.initDb();
       this.notifyAllGlobalSubscribers();
@@ -393,15 +398,16 @@ class MemoryStoreImpl implements MemoryStore {
         filters: [{ field: filterField, op: 'eq', value: scopeId }],
       }) as Record<string, unknown>[];
     } catch (err) {
+      const wrapped = wrapWasmError(`listSync:${entity}`, err);
       if (this.isWasmCorrupted(err)) {
-        console.error(`[MemoryStore] WASM corruption in listSync:`, err);
+        console.error('[MemoryStore] WASM corruption:', wrapped);
         this._corrupted = true;
         this.notifyCorruption();
         if (this.tryRecover()) {
           return [];
         }
       } else {
-        console.error(`[MemoryStore] listSync failed for ${entity}:`, err);
+        console.error(wrapped);
       }
       return [];
     }
@@ -450,7 +456,7 @@ class MemoryStoreImpl implements MemoryStore {
         entity === rootEntity ? stripNulls(data) : stripNulls({ ...data, [scopeField]: scopeId });
       this.db.createSync(entity, record);
     } catch (err) {
-      console.error(`[MemoryStore] create ${entity} failed:`, err);
+      console.error(wrapWasmError(`createSync:${entity}`, err));
     } finally {
       this.originTag = null;
     }
@@ -462,7 +468,7 @@ class MemoryStoreImpl implements MemoryStore {
       this.originTag = tag ?? null;
       this.db.updateSync(entity, id, stripNulls(fields));
     } catch (err) {
-      console.error(`[MemoryStore] update ${entity} failed:`, err);
+      console.error(wrapWasmError(`updateSync:${entity}`, err));
     } finally {
       this.originTag = null;
     }
@@ -487,7 +493,7 @@ class MemoryStoreImpl implements MemoryStore {
       this.pendingDeleteContext = { scopeId: record[scopeField] as string };
       this.db.deleteSync(entity, id);
     } catch (err) {
-      console.error(`[MemoryStore] delete ${entity} failed:`, err);
+      console.error(wrapWasmError(`deleteSync:${entity}`, err));
     } finally {
       this.originTag = null;
       this.pendingDeleteContext = null;
@@ -511,7 +517,7 @@ class MemoryStoreImpl implements MemoryStore {
           const rec = { ...record, [scopeField]: scopeId };
           newDb.createSync(entity, rec);
         } catch (err) {
-          console.error(`[MemoryStore] loadScope create ${entity} failed:`, err);
+          console.error(wrapWasmError(`loadScope.createSync:${entity}`, err));
         }
       }
     }

@@ -28,6 +28,7 @@ export type {
 } from './types.ts';
 
 export { OwnershipError } from './types.ts';
+export { MqdbError } from './internal-wasm-error.ts';
 
 export { createMemoryStore } from './memory-store.ts';
 export { createPersistenceStore } from './persistence-store.ts';

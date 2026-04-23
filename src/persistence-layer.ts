@@ -1,5 +1,6 @@
 import type { Database } from 'mqdb-wasm';
 import type { StoreConfig, PersistenceLayer } from './types.ts';
+import { wrapWasmError, MqdbError } from './internal-wasm-error.ts';
 
 type EntitySubscriptionCallback = (entity: unknown, op: 'insert' | 'update' | 'delete') => void;
 
@@ -33,8 +34,16 @@ class PersistenceLayerImpl implements PersistenceLayer {
   async open(dbName: string): Promise<void> {
     if (this.db) return;
     const wasmMod = await import('mqdb-wasm');
-    await wasmMod.default();
-    this.db = await wasmMod.Database.openPersistent(dbName);
+    try {
+      await wasmMod.default();
+    } catch (err) {
+      throw wrapWasmError('init', err);
+    }
+    try {
+      this.db = await wasmMod.Database.openPersistent(dbName);
+    } catch (err) {
+      throw wrapWasmError(`openPersistent:${dbName}`, err);
+    }
     await this.setupSchemas();
     this.setupWasmSubscriptions();
   }
@@ -99,9 +108,13 @@ class PersistenceLayerImpl implements PersistenceLayer {
         await this.db.create(entity, data);
       } catch (err) {
         if (this.isDbCorrupted(err) && (await this.recoverDb())) {
-          await this.db!.create(entity, data);
+          try {
+            await this.db!.create(entity, data);
+          } catch (retryErr) {
+            throw wrapWasmError(`create:${entity}`, retryErr);
+          }
         } else {
-          throw err;
+          throw wrapWasmError(`create:${entity}`, err);
         }
       }
     });
@@ -114,9 +127,13 @@ class PersistenceLayerImpl implements PersistenceLayer {
         return (await this.db.read(entity, id)) as Record<string, unknown>;
       } catch (err) {
         if (this.isDbCorrupted(err) && (await this.recoverDb())) {
-          return (await this.db!.read(entity, id)) as Record<string, unknown>;
+          try {
+            return (await this.db!.read(entity, id)) as Record<string, unknown>;
+          } catch (retryErr) {
+            throw wrapWasmError(`read:${entity}`, retryErr);
+          }
         }
-        throw err;
+        throw wrapWasmError(`read:${entity}`, err);
       }
     });
   }
@@ -128,9 +145,13 @@ class PersistenceLayerImpl implements PersistenceLayer {
         await this.db.update(entity, id, data);
       } catch (err) {
         if (this.isDbCorrupted(err) && (await this.recoverDb())) {
-          await this.db!.update(entity, id, data);
+          try {
+            await this.db!.update(entity, id, data);
+          } catch (retryErr) {
+            throw wrapWasmError(`update:${entity}`, retryErr);
+          }
         } else {
-          throw err;
+          throw wrapWasmError(`update:${entity}`, err);
         }
       }
     });
@@ -143,9 +164,13 @@ class PersistenceLayerImpl implements PersistenceLayer {
         await this.db.delete(entity, id);
       } catch (err) {
         if (this.isDbCorrupted(err) && (await this.recoverDb())) {
-          await this.db!.delete(entity, id);
+          try {
+            await this.db!.delete(entity, id);
+          } catch (retryErr) {
+            throw wrapWasmError(`delete:${entity}`, retryErr);
+          }
         } else {
-          throw err;
+          throw wrapWasmError(`delete:${entity}`, err);
         }
       }
     });
@@ -167,7 +192,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
             return [];
           }
         }
-        throw err;
+        throw wrapWasmError(`list:${entity}`, err);
       }
     });
   }
@@ -275,28 +300,49 @@ class PersistenceLayerImpl implements PersistenceLayer {
 
   private async setupSchemas(): Promise<void> {
     if (!this.db) return;
+    const db = this.db;
 
     const { entities, localOnlyEntities } = this.config;
     for (const [entity, definition] of Object.entries(entities)) {
-      await this.db.addSchemaAsync(entity, definition);
+      try {
+        await db.addSchemaAsync(entity, definition);
+      } catch (err) {
+        throw wrapWasmError(`addSchema:${entity}`, err);
+      }
       if (definition.foreignKeys) {
         for (const fk of definition.foreignKeys) {
-          await this.db.addForeignKeyAsync(entity, fk.field, fk.references, 'id', fk.onDelete);
+          try {
+            await db.addForeignKeyAsync(entity, fk.field, fk.references, 'id', fk.onDelete);
+          } catch (err) {
+            throw wrapWasmError(`addForeignKey:${entity}.${fk.field}`, err);
+          }
         }
       }
       if (definition.indexes) {
         for (const field of definition.indexes) {
-          await this.db.addIndexAsync(entity, [field]);
+          try {
+            await db.addIndexAsync(entity, [field]);
+          } catch (err) {
+            throw wrapWasmError(`addIndex:${entity}.${field}`, err);
+          }
         }
       }
     }
 
     if (localOnlyEntities) {
       for (const [entity, definition] of Object.entries(localOnlyEntities)) {
-        await this.db.addSchemaAsync(entity, definition);
+        try {
+          await db.addSchemaAsync(entity, definition);
+        } catch (err) {
+          throw wrapWasmError(`addSchema:${entity}`, err);
+        }
         if (definition.indexes) {
           for (const field of definition.indexes) {
-            await this.db.addIndexAsync(entity, [field]);
+            try {
+              await db.addIndexAsync(entity, [field]);
+            } catch (err) {
+              throw wrapWasmError(`addIndex:${entity}.${field}`, err);
+            }
           }
         }
       }
@@ -304,19 +350,23 @@ class PersistenceLayerImpl implements PersistenceLayer {
 
     const pendingSyncDef = this.config.localOnlyEntities?.['pending_sync'];
     if (!pendingSyncDef) {
-      await this.db.addSchemaAsync('pending_sync', {
-        fields: [
-          { name: 'id', type: 'string', required: true },
-          { name: 'op', type: 'string', required: true },
-          { name: 'entity', type: 'string', required: true },
-          { name: 'entityId', type: 'string', required: true },
-          { name: 'scopeId', type: 'string', required: true },
-          { name: 'userId', type: 'string', required: true },
-          { name: 'data', type: 'object' },
-          { name: 'createdAt', type: 'number' },
-        ],
-        indexes: ['scopeId', 'entity'],
-      });
+      try {
+        await db.addSchemaAsync('pending_sync', {
+          fields: [
+            { name: 'id', type: 'string', required: true },
+            { name: 'op', type: 'string', required: true },
+            { name: 'entity', type: 'string', required: true },
+            { name: 'entityId', type: 'string', required: true },
+            { name: 'scopeId', type: 'string', required: true },
+            { name: 'userId', type: 'string', required: true },
+            { name: 'data', type: 'object' },
+            { name: 'createdAt', type: 'number' },
+          ],
+          indexes: ['scopeId', 'entity'],
+        });
+      } catch (err) {
+        throw wrapWasmError('addSchema:pending_sync', err);
+      }
     }
   }
 
@@ -340,21 +390,27 @@ class PersistenceLayerImpl implements PersistenceLayer {
     const allEntities = [...this.allSyncedEntities, ...this.allLocalEntities];
 
     for (const entity of allEntities) {
-      const subId = this.db.subscribe('#', entity, (event: unknown) => {
-        if (this.suppressEntityNotifications) return;
-        const evt = event as { operation?: string; data?: unknown };
-        const op = this.parseOperationFromEvent(evt.operation);
-        if (op) {
-          this.notifyEntitySubscribers(entity, evt.data, op);
-        }
-      });
+      let subId: string;
+      try {
+        subId = this.db.subscribe('#', entity, (event: unknown) => {
+          if (this.suppressEntityNotifications) return;
+          const evt = event as { operation?: string; data?: unknown };
+          const op = this.parseOperationFromEvent(evt.operation);
+          if (op) {
+            this.notifyEntitySubscribers(entity, evt.data, op);
+          }
+        });
+      } catch (err) {
+        throw wrapWasmError(`subscribe:${entity}`, err);
+      }
       this.wasmSubscriptionIds.set(entity, subId);
     }
   }
 
   private isDbCorrupted(err: unknown): boolean {
-    if (err instanceof Error && err.name === 'RuntimeError') return true;
-    const msg = err instanceof Error ? err.message : String(err);
+    const inner = err instanceof MqdbError ? err.cause : err;
+    if (inner instanceof Error && inner.name === 'RuntimeError') return true;
+    const msg = inner instanceof Error ? inner.message : String(inner);
     return /transaction.*null|arg0 is null|transaction error|index out of bounds|database is busy|unreachable/i.test(
       msg
     );
