@@ -292,9 +292,7 @@ class PersistentOfflineQueue implements OfflineQueue {
     for (const record of records) {
       try {
         await this.persistence.delete('pending_sync', record.id as string);
-      } catch {
-        // best effort
-      }
+      } catch {}
     }
   }
 

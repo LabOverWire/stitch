@@ -1,31 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Store } from '../../types.ts';
-
-type ListItem = Record<string, unknown> & { id: string };
-
-function applyEvent(
-  prev: ListItem[],
-  entity: unknown,
-  op: 'insert' | 'update' | 'delete'
-): ListItem[] {
-  if (!entity || typeof entity !== 'object' || !('id' in entity)) return prev;
-  const item = entity as ListItem;
-  switch (op) {
-    case 'insert': {
-      const exists = prev.some((g) => g.id === item.id);
-      if (exists) {
-        return prev.map((g) => (g.id === item.id ? item : g));
-      }
-      return [...prev, item];
-    }
-    case 'update':
-      return prev.map((g) => (g.id === item.id ? item : g));
-    case 'delete':
-      return prev.filter((g) => g.id !== item.id);
-    default:
-      return prev;
-  }
-}
+import { applyEvent, type ListItem } from '../../internal-list-apply.ts';
 
 export function useTopLevelEntities(
   store: Store,

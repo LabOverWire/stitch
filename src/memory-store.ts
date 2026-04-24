@@ -1,7 +1,7 @@
 import type { Database } from 'mqdb-wasm';
 import type initWasm from 'mqdb-wasm';
 import { wrapWasmError } from './internal-wasm-error.ts';
-import type { StoreConfig, MutationEvent, MemoryStore } from './types.ts';
+import type { StoreConfig, MutationEvent, MemoryStore, OriginTag } from './types.ts';
 
 type SubscriptionCallback = () => void;
 type MutationListener = (event: MutationEvent) => void;
@@ -66,9 +66,9 @@ class MemoryStoreImpl implements MemoryStore {
   private batchDepth = 0;
   private batchedKeys: Set<string> = new Set();
   private batchedMutations: MutationEvent[] = [];
-  private originTag: string | null = null;
+  private originTag: OriginTag | null = null;
   private wasmSubIds: string[] = [];
-  private lastOriginTag: string | null = null;
+  private lastOriginTag: OriginTag | null = null;
   private pendingDeleteContext: { scopeId: string } | null = null;
   private pendingInitCallbacks: Array<() => void> = [];
   private corruptionCallbacks: Set<() => void> = new Set();
@@ -184,9 +184,7 @@ class MemoryStoreImpl implements MemoryStore {
     for (const cb of this.corruptionCallbacks) {
       try {
         cb();
-      } catch {
-        // best-effort
-      }
+      } catch {}
     }
   }
 
@@ -240,9 +238,7 @@ class MemoryStoreImpl implements MemoryStore {
       for (const subId of this.wasmSubIds) {
         try {
           this._db.unsubscribe(subId);
-        } catch {
-          // DB may be in a broken state
-        }
+        } catch {}
       }
     }
     this.wasmSubIds = [];
@@ -354,7 +350,7 @@ class MemoryStoreImpl implements MemoryStore {
     };
   }
 
-  getLastOriginTag(): string | null {
+  getLastOriginTag(): OriginTag | null {
     return this.lastOriginTag;
   }
 
@@ -447,7 +443,7 @@ class MemoryStoreImpl implements MemoryStore {
     return map;
   }
 
-  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): void {
+  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: OriginTag): void {
     if (this._corrupted) return;
     try {
       this.originTag = tag ?? null;
@@ -462,7 +458,7 @@ class MemoryStoreImpl implements MemoryStore {
     }
   }
 
-  update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): void {
+  update(entity: string, id: string, fields: Record<string, unknown>, tag?: OriginTag): void {
     if (this._corrupted) return;
     try {
       this.originTag = tag ?? null;
@@ -483,7 +479,7 @@ class MemoryStoreImpl implements MemoryStore {
     }
   }
 
-  delete(entity: string, id: string, tag?: string): void {
+  delete(entity: string, id: string, tag?: OriginTag): void {
     if (this._corrupted) return;
     try {
       this.originTag = tag ?? null;
@@ -504,7 +500,11 @@ class MemoryStoreImpl implements MemoryStore {
     return this.listRecords(entity, scopeId);
   }
 
-  loadScope(scopeId: string, data: Record<string, Record<string, unknown>[]>, tag?: string): void {
+  loadScope(
+    scopeId: string,
+    data: Record<string, Record<string, unknown>[]>,
+    tag?: OriginTag
+  ): void {
     if (!this._Database) return;
     const newDb = new this._Database();
     this.registerSchemasOn(newDb);

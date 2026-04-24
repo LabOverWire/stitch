@@ -37,13 +37,15 @@ export interface StoreConfig {
   userScopeField?: string;
 }
 
+export type OriginTag = 'remote' | 'load' | 'clear';
+
 export interface MutationEvent {
   operation: 'create' | 'update' | 'delete';
   entity: string;
   id: string;
   scopeId: string;
   data: Record<string, unknown> | null;
-  originTag: string | null;
+  originTag: OriginTag | null;
 }
 
 export interface ScopeBundle {
@@ -94,9 +96,9 @@ export interface MemoryStore {
   readonly corrupted: boolean;
   onCorruption(callback: () => void): () => void;
 
-  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: string): void;
-  update(entity: string, id: string, fields: Record<string, unknown>, tag?: string): void;
-  delete(entity: string, id: string, tag?: string): void;
+  create(entity: string, scopeId: string, data: Record<string, unknown>, tag?: OriginTag): void;
+  update(entity: string, id: string, fields: Record<string, unknown>, tag?: OriginTag): void;
+  delete(entity: string, id: string, tag?: OriginTag): void;
   read(entity: string, id: string): Record<string, unknown> | null;
   list(entity: string, scopeId: string): Record<string, unknown>[];
 
@@ -110,11 +112,15 @@ export interface MemoryStore {
   beginBatch(): void;
   endBatch(): void;
 
-  loadScope(scopeId: string, data: Record<string, Record<string, unknown>[]>, tag?: string): void;
+  loadScope(
+    scopeId: string,
+    data: Record<string, Record<string, unknown>[]>,
+    tag?: OriginTag
+  ): void;
   clearScope(scopeId: string): void;
 
   onReady(callback: () => void): void;
-  getLastOriginTag(): string | null;
+  getLastOriginTag(): OriginTag | null;
 }
 
 export interface PersistenceStore {
@@ -313,15 +319,15 @@ export interface Store<S extends EntitySchema = DefaultSchema> {
     entity: K,
     scopeId: string,
     data: Partial<S[K]> & Record<string, unknown>,
-    tag?: string
+    tag?: OriginTag
   ): Promise<string>;
   update<K extends EntityKey<S>>(
     entity: K,
     id: string,
     fields: Partial<S[K]>,
-    tag?: string
+    tag?: OriginTag
   ): Promise<void>;
-  delete<K extends EntityKey<S>>(entity: K, id: string, tag?: string): Promise<void>;
+  delete<K extends EntityKey<S>>(entity: K, id: string, tag?: OriginTag): Promise<void>;
 
   subscribeToScope<K extends EntityKey<S>>(
     scopeId: string,

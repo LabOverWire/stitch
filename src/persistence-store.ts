@@ -567,9 +567,7 @@ class PersistenceStoreImpl implements PersistenceStore {
       for (const subId of this.wasmSubscriptionIds.values()) {
         try {
           this.db.unsubscribe(subId);
-        } catch {
-          // DB may already be in a broken state
-        }
+        } catch {}
       }
     }
     this.wasmSubscriptionIds.clear();
@@ -1396,9 +1394,7 @@ class PersistenceStoreImpl implements PersistenceStore {
         } catch {
           try {
             await this.db.create(entity, { id, ...fields });
-          } catch {
-            // best effort
-          }
+          } catch {}
         }
       },
       5000
@@ -1472,9 +1468,7 @@ class PersistenceStoreImpl implements PersistenceStore {
     try {
       await logoutFn();
       await this.setPendingLogout(false);
-    } catch {
-      // best-effort
-    }
+    } catch {}
   }
 
   setSessionInvalidHandler(handler: () => void): void {

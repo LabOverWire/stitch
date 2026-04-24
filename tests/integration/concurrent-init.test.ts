@@ -8,16 +8,12 @@ describe('store.initialize: concurrent calls are safe', () => {
     const config = projectTaskConfig();
     const store = createStore(config, { persistence: { dbName } });
 
-    // Fire two overlapping initializes (the React StrictMode scenario).
     const [a, b] = await Promise.all([store.initialize(), store.initialize()]);
 
-    // Both resolve. Both observe ready=true.
     expect(a).toBeUndefined();
     expect(b).toBeUndefined();
     expect(store.ready).toBe(true);
 
-    // A subscriber registered before init completes must survive through initialization
-    // and receive events on subsequent mutations.
     const store2 = createStore(projectTaskConfig(), {
       persistence: { dbName: uniqueDbName() },
     });
@@ -27,7 +23,6 @@ describe('store.initialize: concurrent calls are safe', () => {
       events.push({ op, id: data?.id as string | null | undefined ?? null });
     });
 
-    // Kick off two concurrent inits and one create while init is still in flight.
     const initA = store2.initialize();
     const initB = store2.initialize();
     await Promise.all([initA, initB]);
@@ -53,6 +48,27 @@ describe('store.initialize: concurrent calls are safe', () => {
     expect(persistenceBefore).toBe(true);
     expect(persistenceAfter).toBe(true);
     expect(store.ready).toBe(true);
+
+    store.destroy();
+  });
+
+  it('unsubscribing after init actually cancels the migrated persistence subscription', async () => {
+    const dbName = uniqueDbName();
+    const store = createStore(projectTaskConfig(), { persistence: { dbName } });
+
+    const events: string[] = [];
+    const unsubscribe = store.subscribeToEntity('project', () => {
+      events.push('fire');
+    });
+
+    await store.initialize();
+    await store.create('project', '', { name: 'P1' });
+    const afterFirstCreate = events.length;
+    expect(afterFirstCreate).toBeGreaterThan(0);
+
+    unsubscribe();
+    await store.create('project', '', { name: 'P2' });
+    expect(events.length).toBe(afterFirstCreate);
 
     store.destroy();
   });

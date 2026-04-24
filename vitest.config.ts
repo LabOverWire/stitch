@@ -3,7 +3,6 @@ import { playwright } from '@vitest/browser-playwright';
 
 export default defineConfig({
   test: {
-    setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.ts'],
     globals: false,
     testTimeout: 15000,

@@ -32,7 +32,6 @@ describe('MqdbError wrapping', () => {
     const store = createStore(projectTaskConfig(), { persistence: { dbName } });
     await store.initialize();
 
-    // Filtering on an unknown field surfaces the underlying mqdb error as an MqdbError.
     let caught: unknown;
     try {
       await store.list('project', { sort: [{ field: 'does-not-exist', direction: 'asc' }] });

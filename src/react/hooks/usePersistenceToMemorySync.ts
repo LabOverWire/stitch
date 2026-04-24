@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 import type { MemoryStore, PersistenceStore, StoreConfig } from '../../types.ts';
 import { useStitch } from '../context.ts';
 
-const REMOTE_TAG = 'remote';
-
 /**
  * @deprecated `createStore()` wires persistence → memory sync internally; this hook is
  * only needed with the legacy `StitchProvider` path. Will be removed in 0.3.
@@ -39,13 +37,13 @@ export function usePersistenceToMemorySync(
 
         switch (op) {
           case 'insert':
-            memory.create(entity, scopeId, record, REMOTE_TAG);
+            memory.create(entity, scopeId, record, 'remote');
             break;
           case 'update':
-            memory.update(entity, record.id as string, record, REMOTE_TAG);
+            memory.update(entity, record.id as string, record, 'remote');
             break;
           case 'delete':
-            memory.delete(entity, record.id as string, REMOTE_TAG);
+            memory.delete(entity, record.id as string, 'remote');
             break;
         }
       });

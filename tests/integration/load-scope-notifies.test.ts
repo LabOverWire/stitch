@@ -7,7 +7,6 @@ describe('memory-store.loadScope: subscriber notification', () => {
     const dbName = uniqueDbName();
     const config = projectTaskConfig();
 
-    // Seed phase — create data, close store.
     {
       const seed = createStore(config, { persistence: { dbName } });
       await seed.initialize();
@@ -17,7 +16,6 @@ describe('memory-store.loadScope: subscriber notification', () => {
       seed.destroy();
     }
 
-    // Reload phase — fresh store, subscribe BEFORE openScope, assert listener fires.
     const store = createStore(config, { persistence: { dbName } });
     await store.initialize();
 
@@ -32,8 +30,6 @@ describe('memory-store.loadScope: subscriber notification', () => {
 
     await store.replaceScope(projectId);
 
-    // After loadScope runs, any scope subscriber should have been notified at least once
-    // so consumers can re-read getSnapshot and get the populated data.
     expect(callCount).toBeGreaterThan(0);
 
     const snapshot = store.getSnapshot('task', projectId);

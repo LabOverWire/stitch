@@ -12,6 +12,7 @@ import type {
   SortField,
   ListFilter,
   SyncMutation,
+  OriginTag,
 } from './types.ts';
 import { OwnershipError } from './types.ts';
 import { createMemoryStore } from './memory-store.ts';
@@ -55,6 +56,7 @@ class StoreImpl implements Store {
     entity: string;
     callback: (data: unknown, op: 'insert' | 'update' | 'delete') => void;
     memoryUnsub: () => void;
+    persistenceUnsub: (() => void) | null;
   }> = [];
 
   constructor(config: StoreConfig, options: StoreOptions) {
@@ -109,9 +111,8 @@ class StoreImpl implements Store {
 
       for (const entry of this._earlySubscribers) {
         entry.memoryUnsub();
-        persistence.subscribe(entry.entity, entry.callback);
+        entry.persistenceUnsub = persistence.subscribe(entry.entity, entry.callback);
       }
-      this._earlySubscribers = [];
     }
 
     if (this.options.remote) {
@@ -232,7 +233,7 @@ class StoreImpl implements Store {
     entity: string,
     scopeId: string,
     data: Record<string, unknown>,
-    tag?: string
+    tag?: OriginTag
   ): Promise<string> {
     const { rootEntity } = this.config.scope;
     const id = (data.id as string) || crypto.randomUUID();
@@ -282,7 +283,7 @@ class StoreImpl implements Store {
     entity: string,
     id: string,
     fields: Record<string, unknown>,
-    tag?: string
+    tag?: OriginTag
   ): Promise<void> {
     const { rootEntity, scopeField } = this.config.scope;
 
@@ -372,7 +373,7 @@ class StoreImpl implements Store {
     }
   }
 
-  async delete(entity: string, id: string, tag?: string): Promise<void> {
+  async delete(entity: string, id: string, tag?: OriginTag): Promise<void> {
     const { rootEntity, scopeField } = this.config.scope;
 
     const memExisting = this.memory.read(entity, id);
@@ -454,17 +455,19 @@ class StoreImpl implements Store {
       callback(event.data, op as 'insert' | 'update' | 'delete');
     });
 
-    const entry = {
+    const entry: (typeof this._earlySubscribers)[number] = {
       entity,
-      callback: (data: unknown, op: 'insert' | 'update' | 'delete') => {
+      callback: (data, op) => {
         callback((data ?? null) as Record<string, unknown> | null, op);
       },
       memoryUnsub: memUnsub,
+      persistenceUnsub: null,
     };
     this._earlySubscribers.push(entry);
 
     return () => {
-      memUnsub();
+      entry.memoryUnsub();
+      entry.persistenceUnsub?.();
       const idx = this._earlySubscribers.indexOf(entry);
       if (idx >= 0) this._earlySubscribers.splice(idx, 1);
     };
@@ -629,6 +632,7 @@ class StoreImpl implements Store {
     this._queue = null;
     this._ready = false;
     this._initPromise = null;
+    this._earlySubscribers = [];
     this.currentScopeId = null;
     this._authenticatedUser = null;
     this.initialSyncDone = false;
@@ -710,9 +714,7 @@ class StoreImpl implements Store {
     try {
       await logoutFn();
       await this.setPendingLogout(false);
-    } catch {
-      // best-effort
-    }
+    } catch {}
   }
 
   private async handleRemoteMutation(mutation: SyncMutation): Promise<void> {

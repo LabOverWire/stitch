@@ -14,6 +14,7 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
   ...tseslint.configs.recommended,

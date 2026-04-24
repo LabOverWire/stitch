@@ -1,42 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { Store } from '../../types.ts';
-
-function applyEvent(
-  prev: Record<string, unknown>[],
-  entity: unknown,
-  op: 'insert' | 'update' | 'delete'
-): Record<string, unknown>[] {
-  if (!entity || typeof entity !== 'object' || !('id' in entity)) return prev;
-  const entityData = entity as Record<string, unknown>;
-  switch (op) {
-    case 'insert': {
-      const exists = prev.some((item) => item.id === entityData.id);
-      if (exists) {
-        return prev.map((item) => (item.id === entityData.id ? entityData : item));
-      }
-      return [...prev, entityData];
-    }
-    case 'update':
-      return prev.map((item) => (item.id === entityData.id ? entityData : item));
-    case 'delete':
-      return prev.filter((item) => item.id !== entityData.id);
-    default:
-      return prev;
-  }
-}
+import { applyEvent, type ListItem } from '../../internal-list-apply.ts';
 
 export function useScopedEntities(
   store: Store,
   scopeId: string | null,
   entity: string
 ): {
-  data: Record<string, unknown>[];
+  data: ListItem[];
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 } {
   const effectiveScopeField = store.config.scope.scopeField;
-  const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [data, setData] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -52,7 +29,7 @@ export function useScopedEntities(
 
     try {
       const entities = await store.list(entity, { scopeId });
-      setData(entities);
+      setData(entities as ListItem[]);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch entities'));
     } finally {
@@ -75,7 +52,7 @@ export function useScopedEntities(
         .list(entity, { scopeId })
         .then((entities) => {
           if (cancelled) return;
-          let result = entities;
+          let result = entities as ListItem[];
           for (const { entity: e, op } of buffer) {
             result = applyEvent(result, e, op);
           }

@@ -1,7 +1,7 @@
 import { shallowRef, watch, onBeforeUnmount } from 'vue';
 import type { ShallowRef } from 'vue';
 import type { Store } from '../../types.ts';
-import { applyEvent, type ListItem } from './internal-list-apply.ts';
+import { applyEvent, type ListItem } from '../../internal-list-apply.ts';
 
 export function useTopLevelEntities(
   store: Store,

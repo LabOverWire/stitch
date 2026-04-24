@@ -27,6 +27,7 @@ export type {
   EntitySchema,
   DefaultSchema,
   EntityKey,
+  OriginTag,
 } from './types.ts';
 
 /**

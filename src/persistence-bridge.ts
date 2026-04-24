@@ -1,15 +1,15 @@
-import type { MemoryStore, PersistenceStore, MutationEvent } from './types.ts';
+import type { MemoryStore, PersistenceStore, MutationEvent, OriginTag } from './types.ts';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_MAX_QUEUE_SIZE = 5000;
 const DEFAULT_RETRY_BASE_MS = 500;
-const DEFAULT_SKIP_TAGS = new Set(['remote', 'load', 'clear']);
+const DEFAULT_SKIP_TAGS: Set<OriginTag> = new Set(['remote', 'load', 'clear']);
 
 export interface PersistenceBridgeConfig {
   maxQueueSize?: number;
   maxRetries?: number;
   retryBaseMs?: number;
-  skipTags?: Set<string>;
+  skipTags?: Set<OriginTag>;
   scopeField?: string;
 }
 

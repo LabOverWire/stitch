@@ -1,6 +1,20 @@
 import type { Database } from 'mqdb-wasm';
-import type { StoreConfig, PersistenceLayer } from './types.ts';
+import type { StoreConfig, PersistenceLayer, EntityDefinition } from './types.ts';
 import { wrapWasmError, MqdbError } from './internal-wasm-error.ts';
+
+const PENDING_SYNC_DEFINITION: EntityDefinition = {
+  fields: [
+    { name: 'id', type: 'string', required: true },
+    { name: 'op', type: 'string', required: true },
+    { name: 'entity', type: 'string', required: true },
+    { name: 'entityId', type: 'string', required: true },
+    { name: 'scopeId', type: 'string', required: true },
+    { name: 'userId', type: 'string', required: true },
+    { name: 'data', type: 'object' },
+    { name: 'createdAt', type: 'number' },
+  ],
+  indexes: ['scopeId', 'entity'],
+};
 
 type EntitySubscriptionCallback = (entity: unknown, op: 'insert' | 'update' | 'delete') => void;
 
@@ -58,9 +72,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
     if (this.db) {
       try {
         this.db.free();
-      } catch {
-        // db may already be freed
-      }
+      } catch {}
     }
     this.db = null;
     this.shuttingDown = false;
@@ -221,12 +233,17 @@ class PersistenceLayerImpl implements PersistenceLayer {
     entity: string,
     callback: (data: unknown, op: 'insert' | 'update' | 'delete') => void
   ): () => void {
-    if (!this.entitySubscriptions.has(entity)) {
-      this.entitySubscriptions.set(entity, new Set());
+    let set = this.entitySubscriptions.get(entity);
+    if (!set) {
+      set = new Set();
+      this.entitySubscriptions.set(entity, set);
     }
-    this.entitySubscriptions.get(entity)!.add(callback);
+    set.add(callback);
     return () => {
-      this.entitySubscriptions.get(entity)?.delete(callback);
+      const current = this.entitySubscriptions.get(entity);
+      if (!current) return;
+      current.delete(callback);
+      if (current.size === 0) this.entitySubscriptions.delete(entity);
     };
   }
 
@@ -268,9 +285,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
         } catch {
           try {
             await this.db.create(entity, { id, ...fields });
-          } catch {
-            // best effort
-          }
+          } catch {}
         }
       },
       5000
@@ -305,71 +320,44 @@ class PersistenceLayerImpl implements PersistenceLayer {
     const db = this.db;
 
     const { entities, localOnlyEntities } = this.config;
-    for (const [entity, definition] of Object.entries(entities)) {
-      try {
-        await db.addSchemaAsync(entity, definition);
-      } catch (err) {
-        throw wrapWasmError(`addSchema:${entity}`, err);
-      }
-      if (definition.foreignKeys) {
-        for (const fk of definition.foreignKeys) {
+    const pendingSyncDef = localOnlyEntities?.['pending_sync'];
+
+    const schemaDefs: Array<[string, EntityDefinition]> = [
+      ...Object.entries(entities),
+      ...Object.entries(localOnlyEntities ?? {}),
+    ];
+    if (!pendingSyncDef) {
+      schemaDefs.push(['pending_sync', PENDING_SYNC_DEFINITION]);
+    }
+
+    await Promise.all(
+      schemaDefs.map(async ([entity, def]) => {
+        try {
+          await db.addSchemaAsync(entity, def);
+        } catch (err) {
+          throw wrapWasmError(`addSchema:${entity}`, err);
+        }
+      })
+    );
+
+    await Promise.all(
+      schemaDefs.flatMap(([entity, def]) => [
+        ...(def.foreignKeys ?? []).map(async (fk) => {
           try {
             await db.addForeignKeyAsync(entity, fk.field, fk.references, 'id', fk.onDelete);
           } catch (err) {
             throw wrapWasmError(`addForeignKey:${entity}.${fk.field}`, err);
           }
-        }
-      }
-      if (definition.indexes) {
-        for (const field of definition.indexes) {
+        }),
+        ...(def.indexes ?? []).map(async (field) => {
           try {
             await db.addIndexAsync(entity, [field]);
           } catch (err) {
             throw wrapWasmError(`addIndex:${entity}.${field}`, err);
           }
-        }
-      }
-    }
-
-    if (localOnlyEntities) {
-      for (const [entity, definition] of Object.entries(localOnlyEntities)) {
-        try {
-          await db.addSchemaAsync(entity, definition);
-        } catch (err) {
-          throw wrapWasmError(`addSchema:${entity}`, err);
-        }
-        if (definition.indexes) {
-          for (const field of definition.indexes) {
-            try {
-              await db.addIndexAsync(entity, [field]);
-            } catch (err) {
-              throw wrapWasmError(`addIndex:${entity}.${field}`, err);
-            }
-          }
-        }
-      }
-    }
-
-    const pendingSyncDef = this.config.localOnlyEntities?.['pending_sync'];
-    if (!pendingSyncDef) {
-      try {
-        await db.addSchemaAsync('pending_sync', {
-          fields: [
-            { name: 'id', type: 'string', required: true },
-            { name: 'op', type: 'string', required: true },
-            { name: 'entity', type: 'string', required: true },
-            { name: 'entityId', type: 'string', required: true },
-            { name: 'scopeId', type: 'string', required: true },
-            { name: 'userId', type: 'string', required: true },
-            { name: 'data', type: 'object' },
-            { name: 'createdAt', type: 'number' },
-          ],
-          indexes: ['scopeId', 'entity'],
-        });
-      } catch (err) {
-        throw wrapWasmError('addSchema:pending_sync', err);
-      }
-    }
+        }),
+      ])
+    );
   }
 
   private unsubscribeAllWasm(): void {
@@ -377,9 +365,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
       for (const subId of this.wasmSubscriptionIds.values()) {
         try {
           this.db.unsubscribe(subId);
-        } catch {
-          // DB may already be in a broken state
-        }
+        } catch {}
       }
     }
     this.wasmSubscriptionIds.clear();
