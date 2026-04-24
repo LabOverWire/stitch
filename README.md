@@ -221,8 +221,6 @@ Compose them; nest `<AuthProvider>` inside `<StoreProvider>`:
 </StoreProvider>
 ```
 
-`<StitchProvider>` (legacy two-store composition) still exists but is `@deprecated` and will be removed in 0.3.
-
 #### Hooks
 
 | Hook | Description |
@@ -236,8 +234,6 @@ Compose them; nest `<AuthProvider>` inside `<StoreProvider>`:
 | `useRootEntityList(store)` | List all root entities: `{ items, loading, error, refetch }` |
 | `useChildCounts(store, entity)` | Map of `scopeId → count` for a child entity |
 | `useTopLevelEntities(store, entity)` | List globally-synced entities: `{ items, loading }` |
-
-Deprecated: `useStitch()`, `usePersistenceToMemorySync()` — will be removed in 0.3.
 
 ### Vue 3
 
@@ -261,8 +257,6 @@ Same split as React:
   </StitchAuth>
 </StoreRoot>
 ```
-
-`<StitchRoot>` still exists but is `@deprecated` and will be removed in 0.3.
 
 #### Composables
 

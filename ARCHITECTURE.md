@@ -69,9 +69,7 @@ Two independent mqdb-wasm `Database` instances live inside a store:
 | `remote-sync-layer.ts` | `RemoteSyncLayerImpl` — translates scope/CRUD operations into MQTT topic requests and routes inbound mutations back to the store. Owns reconcile + initial-sync logic. |
 | `sync-engine.ts` | Low-level MQTT5 client wrapper. Topic subscription, request-response with correlation IDs, enhanced auth flow for JWT tickets, backoff strategy. Framework-agnostic — takes the WASM module as an argument. |
 | `offline-queue.ts` | Two implementations: `createPersistentOfflineQueue` (writes to `pending_sync`) and `createInMemoryOfflineQueue`. Consolidation logic: collapses insert+updates, insert+delete, stacked updates before flushing. |
-| `persistence-bridge.ts` | Helper that relays persistence-layer events into memory-store mutations. Used by the legacy `StitchProvider` path. |
-| `persistence-store.ts` | **Deprecated.** Pre-0.2 monolith that bundled persistence + sync + offline queue in one class. Kept until 0.3 for migration. |
-| `internal-utils.ts` | `stripNulls`, `isStore`, `isTransientSyncError`. Canonical utilities — older copies still exist in `memory-store.ts` and `persistence-store.ts`. |
+| `internal-utils.ts` | `stripNulls`, `isTransientSyncError`. Canonical utilities — an older `stripNulls` copy still exists in `memory-store.ts`. |
 | `internal-wasm-error.ts` | `MqdbError` and `wrapWasmError` — used at every WASM call site. |
 | `react/` | React bindings. `context.ts` + `provider.tsx` + `hooks/*`. |
 | `vue/` | Vue 3 bindings. `injection-key.ts` + `StoreRoot.ts` + `StitchAuth.ts` + `composables/*`. |
@@ -161,7 +159,6 @@ sequenceDiagram
   participant Remote as RemoteSyncLayer
   participant Store as StoreImpl
   participant Persistence as PersistenceLayer
-  participant Bridge as PersistenceBridge
   participant Memory as MemoryStore
   participant UI as UI
 
@@ -171,12 +168,12 @@ sequenceDiagram
   Remote->>Store: handleRemoteMutation(mutation)
   Store->>Remote: applyMutationToDb(mutation, localAccessor)
   Remote->>Persistence: localAccessor.create / update / delete
-  Persistence-->>Bridge: WASM subscription fires
-  Bridge->>Memory: write with tag='remote'
+  Persistence-->>Store: persistence.subscribe callback fires
+  Store->>Memory: write with tag='remote' (setupPersistenceSubscriptions)
   Memory-->>UI: subscribers notified (re-render)
 ```
 
-Round trip: inbound MQTT → persistence write → persistence WASM event → memory write → UI. The `'remote'` origin tag prevents the memory-side write from looping back out through the offline queue.
+Round trip: inbound MQTT → persistence write → persistence WASM event → `StoreImpl.setupPersistenceSubscriptions` relays into memory → UI. The `'remote'` origin tag prevents the memory-side write from looping back out through the offline queue.
 
 ### Scope replacement
 
@@ -260,7 +257,7 @@ Batching: `beginBatch()`/`endBatch()` defer notification. The batched set is key
 store.subscribeToEntity(entity, (data: Record<string, unknown> | null, op) => { ... })
 ```
 
-- When persistence is configured, attaches to both `persistence.subscribe(entity, cb)` (carries every persisted mutation) and `memory.onMutation` (filtered to `'load'` and `'clear'` origin tags — the two tags `PersistenceBridge` intentionally skips). This preserves `replaceScope` coverage without double-firing for normal local or remote mutations.
+- When persistence is configured, attaches to both `persistence.subscribe(entity, cb)` (carries every persisted mutation) and `memory.onMutation` (filtered to `'load'` and `'clear'` origin tags — the two tags that bypass persistence). This preserves `replaceScope` coverage without double-firing for normal local or remote mutations.
 - When no persistence, listens on `memory.onMutation` alone and filters by entity name.
 - Before initialize (`_persistence === null`), registers an "early subscriber" (`_earlySubscribers` array) that is migrated onto the persistence layer once it opens; the memory hook remains attached through the migration.
 
@@ -471,13 +468,6 @@ The `tests/setup.ts` `beforeEach` hook deletes any leftover IndexedDB databases 
 
 ---
 
-## Deprecated surfaces
+## Surface removed in 0.3
 
-Kept through 0.2 so consumers can migrate; scheduled for removal in 0.3:
-
-- `createPersistenceStore(config, dbName)` and `PersistenceStore` — the pre-0.2 monolith.
-- `StitchProvider` / `SyncStoreProvider` / `StitchContext` / `StitchContextValue` / `useStitch` / `SyncStoreContext` / `SyncStoreContextValue` / `useSyncStore` — all the React bits that targeted the monolith.
-- `usePersistenceToMemorySync` — bridged the monolith's persistence to its memory; `createStore` wires this internally.
-- `StitchRoot` (Vue) — bundles store lifecycle with auth concerns; split into `<StoreRoot>` + `<StitchAuth>` in 0.2.
-
-New code should not reach for these. When changing persistence-layer or memory-store internals, verify the deprecated path still builds but don't extend it.
+The pre-0.2 monolithic path (`createPersistenceStore` / `PersistenceStore` / `PersistenceStoreImpl`), its React bindings (`StitchProvider`, `SyncStoreProvider`, `StitchContext`, `StitchContextValue`, `useStitch`, `SyncStoreContext`, `SyncStoreContextValue`, `useSyncStore`, `usePersistenceToMemorySync`), the bundled Vue `<StitchRoot>`, and the standalone `createPersistenceBridge` / `PersistenceBridge` helpers were all deleted in 0.3. New code uses `createStore` + `<StoreProvider>` / `<AuthProvider>` (React) or `<StoreRoot>` + `<StitchAuth>` (Vue). There is no migration shim — a 0.2 consumer upgrading to 0.3 will see import errors at the removed names and must port to the unified API.

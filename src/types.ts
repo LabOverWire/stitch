@@ -123,49 +123,6 @@ export interface MemoryStore {
   getLastOriginTag(): OriginTag | null;
 }
 
-export interface PersistenceStore {
-  initialize(serverUrl?: string, getTicket?: () => Promise<string>): Promise<void>;
-  disconnect(): void;
-  reconnect(serverUrl: string, getTicket?: () => Promise<string>): Promise<void>;
-  isInitialized(): boolean;
-  isReconnecting(): boolean;
-  notifyCorruption(): void;
-
-  setAuthenticatedUser(userId: string): void;
-  setSessionInvalidHandler(handler: () => void): void;
-  setReconnectValidator(validator: () => Promise<void>): void;
-  resetForLogout(): void;
-
-  getConnectionStatus(): ConnectionStatus;
-  subscribeToConnectionStatus(callback: (status: ConnectionStatus) => void): () => void;
-
-  create(entity: string, data: Record<string, unknown>): Promise<string>;
-  update(entity: string, id: string, data: Record<string, unknown>): Promise<void>;
-  delete(entity: string, id: string): Promise<void>;
-  list(entity: string, filter?: ListFilter): Promise<Record<string, unknown>[]>;
-
-  subscribe(
-    entity: string,
-    callback: (entity: unknown, op: 'insert' | 'update' | 'delete') => void
-  ): () => void;
-
-  openScope(scopeId: string): Promise<void>;
-  closeScope(scopeId: string): Promise<void>;
-  loadScope(scopeId: string): Promise<ScopeBundle | null>;
-  listRootEntities(sort?: SortField[]): Promise<Record<string, unknown>[]>;
-  getChildCount(entity: string, scopeId: string): Promise<number>;
-
-  readLocalState(entity: string, id: string): Promise<Record<string, unknown> | null>;
-  updateLocalState(entity: string, id: string, fields: Record<string, unknown>): Promise<void>;
-
-  getCachedUser(): Promise<Record<string, unknown> | null>;
-  setCachedUser(user: Record<string, unknown>): Promise<void>;
-  clearCachedUser(): Promise<void>;
-  hasPendingLogout(): Promise<boolean>;
-  setPendingLogout(pending: boolean): Promise<void>;
-  flushPendingLogout(logoutFn: () => Promise<void>): Promise<void>;
-}
-
 export interface PersistenceLayer {
   open(dbName: string): Promise<void>;
   close(): void;

@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { PersistenceStore, ConnectionStatus, Store } from '../../types.ts';
-import { isStore } from '../../internal-utils.ts';
+import type { ConnectionStatus, Store } from '../../types.ts';
 
-export function useConnectionStatus(store: PersistenceStore | Store): ConnectionStatus {
-  const [status, setStatus] = useState<ConnectionStatus>(
-    isStore(store) ? store.connectionStatus : store.getConnectionStatus()
-  );
+export function useConnectionStatus(store: Store): ConnectionStatus {
+  const [status, setStatus] = useState<ConnectionStatus>(store.connectionStatus);
 
   useEffect(() => {
     return store.subscribeToConnectionStatus(setStatus);

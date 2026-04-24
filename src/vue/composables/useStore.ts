@@ -4,6 +4,6 @@ import type { StitchContext } from '../injection-key.ts';
 
 export function useStore(): StitchContext {
   const ctx = inject(STITCH_KEY);
-  if (!ctx) throw new Error('useStore must be used within a StitchRoot');
+  if (!ctx) throw new Error('useStore must be used within a StoreRoot');
   return ctx;
 }

@@ -1,6 +1,5 @@
 export { STITCH_KEY } from './injection-key.ts';
 export type { StitchContext } from './injection-key.ts';
-export { StitchRoot } from './StitchRoot.ts';
 export { StoreRoot } from './StoreRoot.ts';
 export { StitchAuth } from './StitchAuth.ts';
 export { useStore } from './composables/useStore.ts';

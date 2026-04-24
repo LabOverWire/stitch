@@ -2,16 +2,29 @@
 
 ## Unreleased
 
+## 0.3.0
+
+### Removed
+
+- **Pre-0.2 monolithic store.** `PersistenceStore` interface, `createPersistenceStore` factory, and `PersistenceStoreImpl` (entire `src/persistence-store.ts` file) deleted. `createStore` + `Store` is the sole store surface.
+- **React legacy bindings.** `StitchProvider`, `SyncStoreProvider` (alias), `StitchContext`, `StitchContextValue`, `SyncStoreContext`, `SyncStoreContextValue`, `useStitch`, `useSyncStore`, `usePersistenceToMemorySync` all removed. Use `<StoreProvider>` + `<AuthProvider>` with `useStore`.
+- **Vue legacy root.** `StitchRoot` component removed. Use `<StoreRoot>` + `<StitchAuth>`.
+- **Standalone persistence bridge.** `PersistenceBridge`, `PersistenceBridgeConfig`, and `createPersistenceBridge` removed — only meaningful with the removed `PersistenceStore` contract and had no internal consumer in 0.2. `StoreImpl` handles memory↔persistence relay internally.
+- **`isStore()` helper** in `src/internal-utils.ts` removed — existed only to disambiguate the now-deleted `PersistenceStore | Store` union in the two `useConnectionStatus` entry points.
+
+No migration shim. 0.2 consumers upgrading to 0.3 will see import errors at the removed names and must port to the unified API documented in `README.md`.
+
 ### Added
 
 - **Anonymous broker support.** `SyncEngine.connect` / `.reconnect` now set `authenticationMethod = 'JWT'` only when `getTicket()` returns a non-empty string. Previously an empty ticket still produced a JWT auth attempt, which `mqdb --anonymous` rejects with `"Bad authentication method"`. A shared `applyTicketAuth(connectOpts, ticket)` helper replaces the duplicated inline block across both call sites.
 - **Vanilla example remote wiring.** `examples/vanilla/src/main.ts` now reads `VITE_STITCH_SERVER_URL` (and optional `VITE_STITCH_AUTH_TICKET`), adds a `remote` block to `StoreOptions` when present, and renders the live connection status in the header. Parity with React/Vue examples.
 - **`examples/**/.env.local`** is now gitignored alongside `node_modules` / `dist`.
+- **Release tooling.** New `RELEASING.md` documents the cut-release recipe. `npm run release:check` runs `npm run check` plus a `scripts/verify-changelog.mjs` gate that fails when `## Unreleased` is empty. Package stays `private: true` — releases are git tags only.
 
 ### Fixed
 
 - **Cross-tab hydration.** A second tab opened against a broker with pre-existing root entities would show an empty list until a page reload. `StoreImpl.onConnected` now calls `persistence.notifyAllEntitySubscribers()` after `syncRootEntityList` resolves, which triggers `useRootEntityList` / the vanilla example's `subscribeToEntity` callback to re-fetch once `initialSyncDone` is true. `onConnected` also catches and swallows sync errors so the notify runs on the success path only.
-- **`subscribeToEntity` double-fire for persistence-backed stores.** The previous refactor wired both `memory.onMutation` and `persistence.subscribe` unconditionally, so every local create/update/delete notified consumers twice (React `useSyncExternalStore` re-rendered twice per mutation). `memory.onMutation` is now filtered to `'load'` and `'clear'` origin tags — the two tags that skip `PersistenceBridge` and therefore don't fire on the persistence side. Normal local mutations and remote mutations fire exactly once; `replaceScope` loads still reach subscribers.
+- **`subscribeToEntity` double-fire for persistence-backed stores.** The previous refactor wired both `memory.onMutation` and `persistence.subscribe` unconditionally, so every local create/update/delete notified consumers twice (React `useSyncExternalStore` re-rendered twice per mutation). `memory.onMutation` is now filtered to `'load'` and `'clear'` origin tags — the two tags that bypass the persistence path and therefore don't fire on the persistence side. Normal local mutations and remote mutations fire exactly once; `replaceScope` loads still reach subscribers.
 - **Vue `OfflineQueuePanel` stuck on the "offline" hint.** The template read `ctx.store.hasRemote` (a class getter, not a reactive source), so Vue captured the pre-initialize `false` value and never re-rendered. Switched to the module-level `hasRemoteConfigured` exported from `stitch.ts` (what `ConnectionBanner` already uses).
 - **`applyEvent` update no-op preserved.** Briefly changed to upsert while chasing the hydration bug; this resurrected deleted rows when a stale `update` arrived after a `delete`. Reverted with a regression test (`tests/unit/internal-list-apply.test.ts`).
 

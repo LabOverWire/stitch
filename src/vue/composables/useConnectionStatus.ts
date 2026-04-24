@@ -1,13 +1,9 @@
 import { watch, shallowRef } from 'vue';
 import type { ShallowRef } from 'vue';
-import type { PersistenceStore, ConnectionStatus, Store } from '../../types.ts';
-import { isStore } from '../../internal-utils.ts';
+import type { ConnectionStatus, Store } from '../../types.ts';
 
-export function useConnectionStatus(store: PersistenceStore | Store): ShallowRef<ConnectionStatus> {
-  const initial: ConnectionStatus = isStore(store)
-    ? store.connectionStatus
-    : store.getConnectionStatus();
-  const status = shallowRef<ConnectionStatus>(initial);
+export function useConnectionStatus(store: Store): ShallowRef<ConnectionStatus> {
+  const status = shallowRef<ConnectionStatus>(store.connectionStatus);
 
   watch(
     () => store,
