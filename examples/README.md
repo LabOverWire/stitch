@@ -16,9 +16,9 @@ cd examples/vue     && npm install && npm run dev   # http://localhost:5175
 
 | Example   | What it is                                                  |
 |-----------|-------------------------------------------------------------|
-| `vanilla` | ~100 lines of TS + one HTML file. Smallest useful demo; exercises `createStore`, `initialize`, `listRootEntities`, `openScope`, `getSnapshot`, `subscribeToScope`, `subscribeToEntity`, CRUD. Good reference + smoke test. |
-| `react`   | `<StoreProvider>`, `useStore`, `useEntitySnapshot`, `useSyncScope`, `useConnectionStatus`, `useRootEntityList`. Runs under `<StrictMode>`. |
-| `vue`     | `<StitchRoot>`, `useStore`, `useEntitySnapshot`, `useEntitySnapshotAsMap`, `useSyncScope`, `useConnectionStatus`. |
+| `vanilla` | ~170 lines of TS + one HTML file. Smallest useful demo; exercises `createStore`, `initialize`, `listRootEntities`, `replaceScope`, `getSnapshot`, `subscribeToScope`, `subscribeToEntity`, `subscribeToConnectionStatus`, CRUD. Good reference + smoke test. |
+| `react`   | `<StoreProvider>` + `<AuthProvider>`, `useStore`, `useEntitySnapshot`, `useSyncScope`, `useConnectionStatus`, `useRootEntityList`. Runs under `<StrictMode>`. |
+| `vue`     | `<StoreRoot>` + `<StitchAuth>`, `useStore`, `useEntitySnapshot`, `useSyncScope`, `useConnectionStatus`, `useRootEntityList`. |
 
 ## Verify end-to-end
 
@@ -41,11 +41,20 @@ The root `npm test` runs the Vitest suite in real Chromium via Playwright.
 
 ## Optional MQTT sync
 
-Each example's `stitch.ts` checks `import.meta.env.VITE_STITCH_SERVER_URL`. Set it to opt into remote sync — without it, the store runs memory + IndexedDB only and no broker is needed.
+Each example's entry point (`stitch.ts` for React/Vue, `main.ts` for vanilla) checks `import.meta.env.VITE_STITCH_SERVER_URL`. Set it to opt into remote sync — without it, the store runs memory + IndexedDB only and no broker is needed.
 
 ```bash
 VITE_STITCH_SERVER_URL=ws://localhost:8080/mqtt npm run dev
 ```
+
+Anonymous broker (no auth): start the broker with `--anonymous` and leave `VITE_STITCH_AUTH_TICKET` unset. The examples omit `getTicket` when no ticket is configured, so the MQTT5 `authenticationMethod` / `authenticationData` headers aren't sent and the anonymous broker accepts the CONNECT.
+
+```bash
+mqdb agent start --db /tmp/stitch-mqdb-data --bind 127.0.0.1:11883 --ws-bind 127.0.0.1:18080 --anonymous
+VITE_STITCH_SERVER_URL=ws://127.0.0.1:18080/mqtt npm run dev
+```
+
+Authenticated broker: set `VITE_STITCH_AUTH_TICKET` to a JWT; the examples forward it via `getTicket`.
 
 ## Vite `server.fs.allow` note
 

@@ -229,7 +229,7 @@ flowchart LR
   StoreSub --> HookList["useRootEntityList<br/>useScopedEntities<br/>useChildCounts<br/>useTopLevelEntities"]
 ```
 
-Key contract: `Store.subscribeToEntity(entity, cb)` delegates to `persistence.subscribe` when persistence is configured and to `memory.onMutation` otherwise. The early-subscriber migration in `initialize()` rebinds pre-init subscribers onto persistence once it opens.
+Key contract: `Store.subscribeToEntity(entity, cb)` bridges both sources — when persistence is configured, `persistence.subscribe` carries normal create/update/delete events while `memory.onMutation` is kept attached but filtered to deliver only `'load'` and `'clear'` tags (which bypass the persistence bridge). Without persistence it falls back to `memory.onMutation` alone. The early-subscriber migration in `initialize()` rebinds pre-init subscribers onto persistence once it opens while keeping the memory hook alive so `replaceScope` loads still fire.
 
 ### Memory-store subscriptions
 
@@ -250,7 +250,7 @@ Batching: `beginBatch()`/`endBatch()` defer notification. The batched set is key
 
 `PersistenceLayer.subscribe(entity, cb)` attaches to `entitySubscriptions`, a plain JS `Map<entity, Set<callback>>`. One WASM subscription per entity (in `setupWasmSubscriptions`) fan-outs to all registered JS callbacks.
 
-`notifyAllEntitySubscribers()` is called once at the end of `store.initialize` to give late-joined subscribers a chance to hydrate — it fires `(data: null, op: 'update')` to every entity's callbacks. Consumers interpret `data === null` as "bulk refresh, re-fetch".
+`notifyAllEntitySubscribers()` is called at the end of `store.initialize` and again at the end of `onConnected` after the initial remote sync resolves. It fires `(data: null, op: 'update')` to every entity's callbacks so late-joined subscribers can hydrate and hooks relying on `listRootEntities` (which returns `[]` until `initialSyncDone`) refresh once the broker's state has landed. Consumers interpret `data === null` as "bulk refresh, re-fetch".
 
 `setSuppressNotifications(true)` silences the WASM → JS fan-out during `replaceScope`'s reconcile window. Any events during reconcile are swallowed; the explicit `memory.loadScope` notification at the end is the source of truth.
 
@@ -260,9 +260,9 @@ Batching: `beginBatch()`/`endBatch()` defer notification. The batched set is key
 store.subscribeToEntity(entity, (data: Record<string, unknown> | null, op) => { ... })
 ```
 
-- When persistence is configured, delegates to `persistence.subscribe(entity, cb)`.
-- When no persistence, listens on `memory.onMutation` and filters by entity name.
-- Before initialize (`_persistence === null`), registers an "early subscriber" (`_earlySubscribers` array) that is migrated onto the persistence layer once it opens.
+- When persistence is configured, attaches to both `persistence.subscribe(entity, cb)` (carries every persisted mutation) and `memory.onMutation` (filtered to `'load'` and `'clear'` origin tags — the two tags `PersistenceBridge` intentionally skips). This preserves `replaceScope` coverage without double-firing for normal local or remote mutations.
+- When no persistence, listens on `memory.onMutation` alone and filters by entity name.
+- Before initialize (`_persistence === null`), registers an "early subscriber" (`_earlySubscribers` array) that is migrated onto the persistence layer once it opens; the memory hook remains attached through the migration.
 
 Data is forwarded with a coerced `null` when the underlying callback signals a bulk-refresh. Ops are `'insert' | 'update' | 'delete'` normalized from whichever source fired.
 
