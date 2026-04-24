@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stitch · Vanilla example</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 640px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      form {
+        display: flex;
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+      input[type='text'] {
+        flex: 1;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      button {
+        padding: 0.4rem 0.8rem;
+        cursor: pointer;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+      }
+      li {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      li.done span { text-decoration: line-through; color: #888; }
+      h2 { margin-top: 2rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Stitch · Vanilla</h1>
+    <p id="status">Initializing…</p>
+
+    <h2>Projects</h2>
+    <form id="project-form">
+      <input id="project-name" type="text" placeholder="New project name" />
+      <button type="submit">Add project</button>
+    </form>
+    <ul id="project-list"></ul>
+
+    <h2 id="scope-title" hidden>Tasks</h2>
+    <form id="task-form" hidden>
+      <input id="task-title" type="text" placeholder="New task title" />
+      <button type="submit">Add task</button>
+    </form>
+    <ul id="task-list"></ul>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
