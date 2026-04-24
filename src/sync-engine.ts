@@ -30,6 +30,15 @@ type ConnectionStatusHandler = (status: ConnectionStatus) => void;
 const FAST_RECONNECT_LIMIT = 5;
 const SLOW_RECONNECT_INTERVAL = 15_000;
 
+function applyTicketAuth(
+  connectOpts: import('mqtt5-wasm').ConnectOptions,
+  ticket: string | undefined
+): void {
+  if (!ticket) return;
+  connectOpts.authenticationMethod = 'JWT';
+  connectOpts.authenticationData = new TextEncoder().encode(ticket);
+}
+
 class SyncEngineImpl implements SyncEngine {
   private client: MqttClient | null = null;
   private readonly clientId: string;
@@ -163,9 +172,7 @@ class SyncEngineImpl implements SyncEngine {
       connectOpts.keepAlive = 60;
 
       if (this.getTicket) {
-        const ticket = await this.getTicket();
-        connectOpts.authenticationMethod = 'JWT';
-        connectOpts.authenticationData = new TextEncoder().encode(ticket);
+        applyTicketAuth(connectOpts, await this.getTicket());
       }
 
       await this.client.connectWithOptions(serverUrl, connectOpts);
@@ -214,8 +221,7 @@ class SyncEngineImpl implements SyncEngine {
             setTimeout(() => reject(new Error('getTicket timeout')), 10_000)
           ),
         ]);
-        connectOpts.authenticationMethod = 'JWT';
-        connectOpts.authenticationData = new TextEncoder().encode(ticket);
+        applyTicketAuth(connectOpts, ticket);
       }
 
       await this.client.connectWithOptions(serverUrl, connectOpts);

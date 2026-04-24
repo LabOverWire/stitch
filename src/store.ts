@@ -110,9 +110,9 @@ class StoreImpl implements Store {
       });
 
       for (const entry of this._earlySubscribers) {
-        entry.memoryUnsub();
         entry.persistenceUnsub = persistence.subscribe(entry.entity, entry.callback);
       }
+      this._earlySubscribers = [];
     }
 
     if (this.options.remote) {
@@ -443,14 +443,9 @@ class StoreImpl implements Store {
     entity: string,
     callback: (data: Record<string, unknown> | null, op: 'insert' | 'update' | 'delete') => void
   ): () => void {
-    if (this._persistence) {
-      return this._persistence.subscribe(entity, (data, op) => {
-        callback((data ?? null) as Record<string, unknown> | null, op);
-      });
-    }
-
     const memUnsub = this.memory.onMutation((event) => {
       if (event.entity !== entity) return;
+      if (this._persistence && event.originTag !== 'load' && event.originTag !== 'clear') return;
       const op = event.operation === 'create' ? 'insert' : event.operation;
       callback(event.data, op as 'insert' | 'update' | 'delete');
     });
@@ -463,7 +458,12 @@ class StoreImpl implements Store {
       memoryUnsub: memUnsub,
       persistenceUnsub: null,
     };
-    this._earlySubscribers.push(entry);
+
+    if (this._persistence) {
+      entry.persistenceUnsub = this._persistence.subscribe(entity, entry.callback);
+    } else {
+      this._earlySubscribers.push(entry);
+    }
 
     return () => {
       entry.memoryUnsub();
@@ -764,6 +764,7 @@ class StoreImpl implements Store {
         await this._remote.syncRootEntityList(localAccessor, this._queue);
         this.initialSyncDone = true;
       }
+      this._persistence?.notifyAllEntitySubscribers();
     } catch (err) {
       void err;
       this.initialSyncDone = true;

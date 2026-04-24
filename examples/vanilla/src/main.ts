@@ -1,5 +1,5 @@
 import { createStore } from '@laboverwire/stitch';
-import type { StoreConfig } from '@laboverwire/stitch';
+import type { StoreConfig, StoreOptions } from '@laboverwire/stitch';
 
 interface Project {
   id: string;
@@ -43,7 +43,22 @@ const config: StoreConfig = {
   scope: { rootEntity: 'project', childEntities: ['task'], scopeField: 'projectId' },
 };
 
-const store = createStore<Schema>(config, { persistence: { dbName: DB_NAME } });
+const serverUrl = import.meta.env.VITE_STITCH_SERVER_URL as string | undefined;
+const authTicket = import.meta.env.VITE_STITCH_AUTH_TICKET as string | undefined;
+
+const options: StoreOptions = {
+  persistence: { dbName: DB_NAME },
+  ...(serverUrl
+    ? {
+        remote: {
+          serverUrl,
+          ...(authTicket ? { getTicket: async () => authTicket } : {}),
+        },
+      }
+    : {}),
+};
+
+const store = createStore<Schema>(config, options);
 
 const $status = document.getElementById('status') as HTMLParagraphElement;
 const $projectForm = document.getElementById('project-form') as HTMLFormElement;
@@ -138,7 +153,14 @@ store.subscribeToEntity('project', () => {
 
 async function main(): Promise<void> {
   await store.initialize();
-  $status.textContent = `✓ store ready (${store.hasPersistence ? 'memory + IndexedDB' : 'memory only'})`;
+  const remoteNote = store.hasRemote ? ` + remote (${store.connectionStatus})` : '';
+  $status.textContent = `✓ store ready (${store.hasPersistence ? 'memory + IndexedDB' : 'memory only'}${remoteNote})`;
+  if (store.hasRemote) {
+    store.subscribeToConnectionStatus((s) => {
+      const persistNote = store.hasPersistence ? 'memory + IndexedDB' : 'memory only';
+      $status.textContent = `✓ store ready (${persistNote} + remote (${s}))`;
+    });
+  }
   await renderProjects();
 }
 

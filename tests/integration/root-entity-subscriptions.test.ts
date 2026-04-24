@@ -43,6 +43,35 @@ describe('root entity: subscriptions and snapshot', () => {
     store.destroy();
   });
 
+  it('subscribeToEntity fires when replaceScope loads the root into memory', async () => {
+    const dbName = uniqueDbName();
+    {
+      const seed = createStore(projectTaskConfig(), { persistence: { dbName } });
+      await seed.initialize();
+      await seed.create('project', '', { name: 'Persisted project' });
+      seed.destroy();
+    }
+
+    const store = createStore(projectTaskConfig(), { persistence: { dbName } });
+    await store.initialize();
+    const [root] = await store.listRootEntities();
+    const scopeId = root.id as string;
+
+    const events: Array<{ name: string | undefined; op: string }> = [];
+    const unsubscribe = store.subscribeToEntity('project', (data, op) => {
+      events.push({ name: data?.name as string | undefined, op });
+    });
+
+    await store.replaceScope(scopeId);
+
+    const loadEvent = events.find((e) => e.name === 'Persisted project');
+    expect(loadEvent).toBeDefined();
+    expect(store.read('project', scopeId)).toMatchObject({ name: 'Persisted project' });
+
+    unsubscribe();
+    store.destroy();
+  });
+
   it('subscribeToScope for root fires after openScope populates memory from persistence', async () => {
     const dbName = uniqueDbName();
     {

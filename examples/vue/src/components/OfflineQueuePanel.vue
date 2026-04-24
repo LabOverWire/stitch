@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useStore } from '@laboverwire/stitch/vue';
+import { hasRemoteConfigured } from '../stitch.ts';
 
 interface PendingRow {
   id: string;
@@ -26,13 +27,13 @@ async function refresh() {
 }
 
 watch(
-  () => [ctx.initialized, ctx.store.hasRemote] as const,
-  ([ready, hasRemote]) => {
+  () => ctx.initialized,
+  (ready) => {
     if (timer !== null) {
       clearInterval(timer);
       timer = null;
     }
-    if (!ready || !hasRemote) return;
+    if (!ready || !hasRemoteConfigured) return;
     void refresh();
     timer = window.setInterval(refresh, 1000);
   },
@@ -45,7 +46,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <footer v-if="!ctx.store.hasRemote" class="queue-panel queue-panel--hint">
+  <footer v-if="!hasRemoteConfigured" class="queue-panel queue-panel--hint">
     Offline queue inactive. Set <code>VITE_STITCH_SERVER_URL</code> to enable remote sync.
   </footer>
   <footer v-else class="queue-panel">

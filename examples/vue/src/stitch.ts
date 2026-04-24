@@ -40,7 +40,7 @@ const options: StoreOptions = {
     ? {
         remote: {
           serverUrl,
-          getTicket: async () => authTicket ?? '',
+          ...(authTicket ? { getTicket: async () => authTicket } : {}),
         },
       }
     : {}),
