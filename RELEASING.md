@@ -35,7 +35,7 @@
    ```
    The push of `vX.Y.Z` triggers `.github/workflows/release.yml`, which:
    - Verifies the tag matches `package.json` `version`
-   - Runs `npm run release:check` and `npm run build`
+   - Runs `npm run check` and `npm run build`
    - Runs `npm publish --access public --provenance` (auth via `NPM_TOKEN` repo secret)
    - Creates a GitHub Release whose body is the matching `## X.Y.Z` section of `CHANGELOG.md` (extracted via `scripts/extract-changelog.mjs`)
 
