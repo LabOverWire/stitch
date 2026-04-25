@@ -1,10 +1,42 @@
 {
   "name": "@laboverwire/stitch",
   "version": "0.3.0",
+  "description": "Reactive state synchronization library bridging an in-memory store, IndexedDB persistence, and MQTT-based remote sync.",
+  "license": "Apache-2.0",
+  "author": "LabOverWire",
   "type": "module",
-  "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LabOverWire/stitch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LabOverWire/stitch/issues"
+  },
+  "homepage": "https://github.com/LabOverWire/stitch#readme",
+  "keywords": [
+    "state",
+    "store",
+    "sync",
+    "offline",
+    "indexeddb",
+    "mqtt",
+    "react",
+    "vue",
+    "reactive",
+    "wasm"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
@@ -16,6 +48,9 @@
     "test:ui": "vitest --ui",
     "check": "npm run type-check && npm run lint && npm run format:check && npm test",
     "release:check": "npm run check && node scripts/verify-changelog.mjs",
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run clean && npm run check && npm run build",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -25,9 +60,18 @@
     ]
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/react/index.ts",
-    "./vue": "./src/vue/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.js"
+    }
   },
   "dependencies": {
     "mqdb-wasm": "^0.3.1",

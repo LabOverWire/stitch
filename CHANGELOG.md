@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- **Open-source release.** Apache-2.0 license; `package.json` now carries `license`, `author`, `repository`, `bugs`, `homepage`, `keywords`, `engines`, `sideEffects`, and a `files` allowlist. `private: true` removed.
+- **Build pipeline.** New `tsconfig.build.json` + `npm run build` emit ESM `dist/` via `tsc` with `rewriteRelativeImportExtensions` (rewrites `.ts` → `.js`). `exports` map points at `dist/index.js`, `dist/react/index.js`, `dist/vue/index.js` with matching `.d.ts` declarations. `prepublishOnly` runs `clean` + `check` + `build` so the npm tarball cannot ship without a green gate.
+
 ## 0.3.0
 
 ### Removed

@@ -1,6 +1,6 @@
 # Releasing
 
-`@laboverwire/stitch` is `private: true` and not published to npm. Releases are git tags on `main`. Consumers pin by tag or sha.
+`@laboverwire/stitch` is published to npm under the `@laboverwire` org and tagged on `main`. Consumers can install from the registry or pin a git tag/sha.
 
 ## Cut a release
 
@@ -34,6 +34,12 @@
    git push --follow-tags
    ```
 
+6. **Publish to npm:**
+   ```bash
+   npm publish --access public
+   ```
+   `prepublishOnly` reruns `clean` + `check` + `build`, so the published tarball always contains a fresh `dist/` regardless of the working tree. `--access public` is required on first publish of a scoped package; subsequent publishes can drop it.
+
 ## Bump conventions
 
 - **Patch** (`0.x.y` → `0.x.y+1`) — bug fixes, doc changes, no public API change.
@@ -42,4 +48,4 @@
 
 ## Consumer upgrade path
 
-Consumers pin by tag (`@laboverwire/stitch#v0.3.0`) or sha in their `package.json` git URL. There is no npm registry entry. `files` and `publishConfig` are intentionally absent.
+Consumers install from npm (`npm install @laboverwire/stitch`) or pin a git tag (`@laboverwire/stitch#v0.3.0`) / sha in their `package.json` git URL. The npm tarball contains only `dist/`, `README.md`, `LICENSE`, and `CHANGELOG.md` (see the `files` allowlist in `package.json`).
