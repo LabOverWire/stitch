@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **Minimum supported Node bumped to `>=20`** (from `>=18`). Node 18 reached end-of-life and CI no longer exercises it. Consumers on Node 18 should upgrade to Node 20 LTS or 22.
+
 ### Changed
 
 - **Open-source release.** Apache-2.0 license; `package.json` now carries `license`, `author`, `repository`, `bugs`, `homepage`, `keywords`, `engines`, `sideEffects`, and a `files` allowlist. `private: true` removed.
