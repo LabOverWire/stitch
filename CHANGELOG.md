@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- **Polynomial-time backtracking in WASM corruption detection.** `MemoryStore.isWasmCorrupted` and `PersistenceLayer.isDbCorrupted` previously matched error messages with a regex containing `transaction.*null`, which has polynomial complexity on inputs with many `transaction` prefixes (CodeQL `js/polynomial-redos`). Replaced with substring `indexOf` checks — same semantics, linear time.
+- **Polynomial-time backtracking in WASM corruption detection.** `MemoryStore.isWasmCorrupted` and `PersistenceLayer.isDbCorrupted` previously matched error messages with a regex containing `transaction.*null`, which has polynomial complexity on inputs with many `transaction` prefixes (CodeQL `js/polynomial-redos`). Both helpers now delegate to a shared `isCorruptionError(err, extraPatterns)` exported from `internal-wasm-error.ts`, which uses substring `indexOf` checks — same semantics, linear time, and the corruption-pattern list lives in one place.
 
 ## 0.3.0
 

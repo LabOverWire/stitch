@@ -1,6 +1,6 @@
 import type { Database } from 'mqdb-wasm';
 import type { StoreConfig, PersistenceLayer, EntityDefinition } from './types.ts';
-import { wrapWasmError, MqdbError } from './internal-wasm-error.ts';
+import { wrapWasmError, isCorruptionError } from './internal-wasm-error.ts';
 
 const PENDING_SYNC_DEFINITION: EntityDefinition = {
   fields: [
@@ -396,16 +396,7 @@ class PersistenceLayerImpl implements PersistenceLayer {
   }
 
   private isDbCorrupted(err: unknown): boolean {
-    const inner = err instanceof MqdbError ? err.cause : err;
-    if (inner instanceof Error && inner.name === 'RuntimeError') return true;
-    const msg = (inner instanceof Error ? inner.message : String(inner)).toLowerCase();
-    if (msg.includes('arg0 is null')) return true;
-    if (msg.includes('transaction error')) return true;
-    if (msg.includes('index out of bounds')) return true;
-    if (msg.includes('database is busy')) return true;
-    if (msg.includes('unreachable')) return true;
-    const txIdx = msg.indexOf('transaction');
-    return txIdx !== -1 && msg.indexOf('null', txIdx) !== -1;
+    return isCorruptionError(err, ['index out of bounds', 'database is busy']);
   }
 
   private async recoverDb(): Promise<boolean> {
