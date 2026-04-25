@@ -9,7 +9,7 @@ if (!version) {
   process.exit(1);
 }
 
-if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/.test(version)) {
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/.test(version)) {
   console.error(`extract-changelog.mjs: "${version}" is not a valid SemVer version.`);
   process.exit(1);
 }
