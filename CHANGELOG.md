@@ -6,6 +6,11 @@
 
 - **Open-source release.** Apache-2.0 license; `package.json` now carries `license`, `author`, `repository`, `bugs`, `homepage`, `keywords`, `engines`, `sideEffects`, and a `files` allowlist. `private: true` removed.
 - **Build pipeline.** New `tsconfig.build.json` + `npm run build` emit ESM `dist/` via `tsc` with `rewriteRelativeImportExtensions` (rewrites `.ts` → `.js`). `exports` map points at `dist/index.js`, `dist/react/index.js`, `dist/vue/index.js` with matching `.d.ts` declarations. `prepublishOnly` runs `clean` + `check` + `build` so the npm tarball cannot ship without a green gate.
+- **`mqdb-wasm` bumped to `0.3.2`** (from `0.3.1`).
+
+### Fixed
+
+- **Polynomial-time backtracking in WASM corruption detection.** `MemoryStore.isWasmCorrupted` and `PersistenceLayer.isDbCorrupted` previously matched error messages with a regex containing `transaction.*null`, which has polynomial complexity on inputs with many `transaction` prefixes (CodeQL `js/polynomial-redos`). Both helpers now delegate to a shared `isCorruptionError(err, extraPatterns)` exported from `internal-wasm-error.ts`, which uses substring `indexOf` checks — same semantics, linear time, and the corruption-pattern list lives in one place.
 
 ## 0.3.0
 

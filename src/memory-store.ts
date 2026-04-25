@@ -1,6 +1,6 @@
 import type { Database } from 'mqdb-wasm';
 import type initWasm from 'mqdb-wasm';
-import { wrapWasmError } from './internal-wasm-error.ts';
+import { wrapWasmError, isCorruptionError } from './internal-wasm-error.ts';
 import type { StoreConfig, MutationEvent, MemoryStore, OriginTag } from './types.ts';
 
 type SubscriptionCallback = () => void;
@@ -175,9 +175,7 @@ class MemoryStoreImpl implements MemoryStore {
   }
 
   private isWasmCorrupted(err: unknown): boolean {
-    if (err instanceof Error && err.name === 'RuntimeError') return true;
-    const msg = err instanceof Error ? err.message : String(err);
-    return /transaction.*null|arg0 is null|transaction error|unreachable/i.test(msg);
+    return isCorruptionError(err);
   }
 
   private notifyCorruption(): void {

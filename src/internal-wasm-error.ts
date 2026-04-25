@@ -29,3 +29,19 @@ export async function wrapAsync<T>(method: string, fn: () => Promise<T>): Promis
     throw wrapWasmError(method, err);
   }
 }
+
+const BASE_CORRUPTION_PATTERNS = ['arg0 is null', 'transaction error', 'unreachable'] as const;
+
+export function isCorruptionError(err: unknown, extraPatterns: readonly string[] = []): boolean {
+  const inner = err instanceof MqdbError ? err.cause : err;
+  if (inner instanceof Error && inner.name === 'RuntimeError') return true;
+  const msg = (inner instanceof Error ? inner.message : String(inner)).toLowerCase();
+  for (const pattern of BASE_CORRUPTION_PATTERNS) {
+    if (msg.includes(pattern)) return true;
+  }
+  for (const pattern of extraPatterns) {
+    if (msg.includes(pattern)) return true;
+  }
+  const txIdx = msg.indexOf('transaction');
+  return txIdx !== -1 && msg.indexOf('null', txIdx) !== -1;
+}
