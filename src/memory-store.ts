@@ -176,8 +176,12 @@ class MemoryStoreImpl implements MemoryStore {
 
   private isWasmCorrupted(err: unknown): boolean {
     if (err instanceof Error && err.name === 'RuntimeError') return true;
-    const msg = err instanceof Error ? err.message : String(err);
-    return /transaction.*null|arg0 is null|transaction error|unreachable/i.test(msg);
+    const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+    if (msg.includes('arg0 is null')) return true;
+    if (msg.includes('transaction error')) return true;
+    if (msg.includes('unreachable')) return true;
+    const txIdx = msg.indexOf('transaction');
+    return txIdx !== -1 && msg.indexOf('null', txIdx) !== -1;
   }
 
   private notifyCorruption(): void {
