@@ -1,0 +1,62 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much as you can — minimal repros get fixed fastest.
+
+  - type: input
+    id: version
+    attributes:
+      label: Stitch version
+      description: Output of `npm ls @laboverwire/stitch`
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser + version, Node version, MQTT broker (if relevant).
+      placeholder: "Chrome 131, Node 22.5, EMQX 5.x"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: binding
+    attributes:
+      label: Binding
+      options:
+        - Core (no framework binding)
+        - React
+        - Vue
+        - Other / not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Code snippet, repo link, or step-by-step. The smaller the better.
+      render: ts
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / errors
+      description: Console output, stack traces, MQTT broker logs. Trim aggressively.
+      render: shell

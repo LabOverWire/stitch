@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose new behavior or an API addition.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For larger ideas, consider opening a [Discussion](https://github.com/LabOverWire/stitch/discussions) first — it gives more room for design back-and-forth before committing to an issue.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, or what's painful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Sketch the API or behavior. Concrete examples beat abstract descriptions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds did you try? Why aren't they good enough?
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Core
+        - React binding
+        - Vue binding
+        - Persistence layer
+        - Remote sync layer
+        - Docs / examples
+        - Other
+    validations:
+      required: true

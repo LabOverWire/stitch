@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/LabOverWire/stitch/discussions
+    about: Ask usage questions, share ideas, or propose larger changes here before opening a PR.
+  - name: Security vulnerabilities
+    url: https://github.com/LabOverWire/stitch/security/advisories/new
+    about: Report security issues privately. Do not file a public issue.
