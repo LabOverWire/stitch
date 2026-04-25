@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1
+
+### Fixed
+
+- **Republish of `0.4.0`.** The `0.4.0` tag was pushed but the publish workflow failed before reaching the npm registry — `npm publish --provenance` requires `id-token: write` on the workflow's `permissions` block, which was missing. Fixed in the release workflow; `0.4.1` is the first version actually published to npm. No source changes from `0.4.0`.
+
 ## 0.4.0
 
 ### Changed (breaking)
