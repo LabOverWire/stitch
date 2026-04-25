@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 ### Changed (breaking)
 
 - **Minimum supported Node bumped to `>=20`** (from `>=18`). Node 18 reached end-of-life and CI no longer exercises it. Consumers on Node 18 should upgrade to Node 20 LTS or 22.

@@ -52,8 +52,8 @@ jobs:
             exit 1
           fi
 
-      - name: Release gate
-        run: npm run release:check
+      - name: Check
+        run: npm run check
 
       - name: Build
         run: npm run build
