@@ -6,7 +6,7 @@ import type {
   PersistenceLayer,
 } from './types.ts';
 import { OwnershipError } from './types.ts';
-import { isTransientSyncError } from './internal-utils.ts';
+import { isTransientSyncError, isPermanentMutationError } from './internal-utils.ts';
 
 function consolidateMutations(records: Array<Record<string, unknown>>): ConsolidatedMutation[] {
   const grouped = new Map<
@@ -149,16 +149,17 @@ async function flushConsolidated(
       }
       await removeRecords(recordIds);
     } catch (err) {
+      if (isTransientSyncError(err)) continue;
+
       const isNotFound = err instanceof Error && /not found/i.test(err.message);
       const isConflict =
-        err instanceof Error && /already exists|conflict|duplicate/i.test(err.message);
+        err instanceof Error &&
+        /already exists|conflict|duplicate|unique constraint violation/i.test(err.message);
 
       if (isNotFound && op === 'update' && entity === rootEntity) {
         try {
           await sender.deleteEntity(entity, id);
-        } catch {
-          // already gone
-        }
+        } catch {}
         await removeRecords(recordIds);
       } else if (isNotFound && op === 'update') {
         try {
@@ -186,6 +187,7 @@ async function flushConsolidated(
                 `[OfflineQueue] Failed to update-on-conflict ${entity} during flush:`,
                 updateErr
               );
+              await removeRecords(recordIds);
             }
           }
         } else {
@@ -193,10 +195,12 @@ async function flushConsolidated(
         }
       } else if (err instanceof OwnershipError) {
         await removeRecords(recordIds);
-      } else if (isTransientSyncError(err)) {
-        // leave for next flush cycle
+      } else if (isPermanentMutationError(err)) {
+        console.error('[OfflineQueue] Dropping mutation after permanent error:', err);
+        await removeRecords(recordIds);
       } else {
-        console.error('[OfflineQueue] Failed to flush mutation:', err);
+        console.error('[OfflineQueue] Dropping mutation after unknown error:', err);
+        await removeRecords(recordIds);
       }
     }
   }
@@ -272,9 +276,7 @@ class PersistentOfflineQueue implements OfflineQueue {
         for (const id of ids) {
           try {
             await this.persistence.delete('pending_sync', id);
-          } catch {
-            // already cleaned up
-          }
+          } catch {}
         }
       };
 
