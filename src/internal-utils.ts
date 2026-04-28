@@ -10,5 +10,12 @@ export function stripNulls(obj: Record<string, unknown>): Record<string, unknown
 
 export function isTransientSyncError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
-  return /timeout|disconnected|foreign key violation/i.test(err.message);
+  return /timeout|disconnected/i.test(err.message);
+}
+
+export function isPermanentMutationError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /unique constraint violation|foreign key violation|not null violation|cascade blocked|referenced by other entities/i.test(
+    err.message
+  );
 }

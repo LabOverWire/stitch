@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.4.2
+
+### Fixed
+
+- **Offline queue retry loop on permanent constraint errors.** `flushConsolidated` in `src/offline-queue.ts` did not match MQDB's actual error string `unique constraint violation: <entity>.<field>` in its conflict regex, and the terminal `else` branch logged the error without dequeuing — so any unclassified failure retried every flush cycle, indefinitely. Conflict regex extended; new `isPermanentMutationError` helper in `internal-utils.ts` covers the full MQDB constraint-failure set (`unique constraint violation`, `foreign key violation`, `not null violation`, `cascade blocked`, `referenced by other entities`) and dropping mutations after permanent or unknown errors is now the explicit terminal branch with a one-time log line.
+- **`foreign key violation` mis-classified as transient.** `isTransientSyncError` previously matched `foreign key violation`, which is a permanent constraint failure and would never succeed on retry. Removed from the transient regex; covered by the new permanent classifier above.
+- **Behavior change to call out:** previously, any error not classified as transient/conflict/not-found/ownership stayed in the offline queue and re-ran every flush cycle (visible only as repeated console errors). After this release, those entries are dropped after one attempt with a `Dropping mutation after permanent error:` or `Dropping mutation after unknown error:` log.
+- **Vite sourcemap warnings.** `tsconfig.build.json` enabled `sourceMap: true` but not `inlineSources`, so the published `.map` files referenced `../src/*.ts` paths that are not in the npm tarball. Vite warned for every `dist/*.js` consumer-side. Added `inlineSources: true`; source content is now embedded in the maps.
+
+## 0.4.1
+
+### Fixed
+
+- **Republish of `0.4.0`.** The `0.4.0` tag was pushed but the publish workflow failed before reaching the npm registry — `npm publish --provenance` requires `id-token: write` on the workflow's `permissions` block, which was missing. Fixed in the release workflow; `0.4.1` is the first version actually published to npm. No source changes from `0.4.0`.
+
 ## 0.4.0
 
 ### Changed (breaking)
