@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.4.3
+
+### Added
+
+- **Offline queue flush regression tests.** New `tests/unit/offline-queue-flush.test.ts` exercises `createInMemoryOfflineQueue.flushConsolidated` against the permanent/transient/conflict/ownership classifier paths added in 0.4.2, locking in the "drop after permanent or unknown error" terminal branch and the `OwnershipError` immediate re-throw.
+
+### Changed
+
+- **`typescript` bumped to `6.0.3`** (from `5.9.3`).
+- **Dependabot grouped updates.** npm minor/patch and GitHub Actions groups updated to current versions.
+
 ## 0.4.2
 
 ### Fixed
