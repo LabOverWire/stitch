@@ -19,3 +19,15 @@ export function isPermanentMutationError(err: unknown): boolean {
     err.message
   );
 }
+
+export function parseResponseRequestId(
+  responsePrefix: string,
+  clientId: string,
+  topic: string
+): string | null {
+  const expected = `${responsePrefix}/${clientId}/`;
+  if (!topic.startsWith(expected)) return null;
+  const requestId = topic.slice(expected.length);
+  if (!requestId || requestId.includes('/')) return null;
+  return requestId;
+}

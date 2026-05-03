@@ -13,6 +13,7 @@ import type {
   SyncEngine,
 } from './types.ts';
 import { OwnershipError } from './types.ts';
+import { parseResponseRequestId } from './internal-utils.ts';
 
 interface ChangeEvent {
   operation: 'Create' | 'Update' | 'Delete';
@@ -79,7 +80,7 @@ class SyncEngineImpl implements SyncEngine {
     this.clientId = clientId;
     this.config = config;
     this.prefix = config.syncTopicPrefix ?? '$DB';
-    this.responsePrefix = config.responseTopicPrefix ?? '$SYS/responses';
+    this.responsePrefix = config.responseTopicPrefix ?? '$DB/clients';
   }
 
   async connect(
@@ -420,10 +421,9 @@ class SyncEngineImpl implements SyncEngine {
   }
 
   private handleResponseMessage(topic: string, payload: Uint8Array): void {
-    const match = topic.match(new RegExp(`^\\${this.responsePrefix}/[^/]+/(.+)$`));
-    if (!match) return;
+    const requestId = parseResponseRequestId(this.responsePrefix, this.clientId, topic);
+    if (!requestId) return;
 
-    const requestId = match[1];
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
       this.pendingRequests.delete(requestId);

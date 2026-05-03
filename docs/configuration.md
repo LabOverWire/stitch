@@ -11,7 +11,7 @@
 | `topLevelEntities` | `Array<{ entity, subscriptionPattern }>` | Entities synced globally, not scoped |
 | `localOnlyEntities` | `Record<string, EntityDefinition>` | Entities that never touch MQTT |
 | `syncTopicPrefix` | `string` | MQTT topic prefix (default: `$DB`) |
-| `responseTopicPrefix` | `string` | MQTT response prefix (default: `$SYS/responses`) |
+| `responseTopicPrefix` | `string` | MQTT response inbox prefix (default: `$DB/clients`). Per-request response topic is `{prefix}/{clientId}/{requestId}` |
 | `versionField` | `string` | Field name for optimistic version tracking |
 | `updatedAtField` | `string` | Field name for last-updated timestamp |
 | `userScopeField` | `string` | Field name for user-level scoping |
