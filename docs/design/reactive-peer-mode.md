@@ -169,13 +169,13 @@ if (typeof remoteVersion === 'number') {
 }
 ```
 
-In peer mode, replace this with an HLC compare. The entity's `_version` field becomes an HLC object. The compare is lexicographic on `(ts, counter, nodeId)`.
+In peer mode, the LWW compare reads a dedicated `_hlc` field instead of `_version`. The compare is lexicographic on `(ts, counter, nodeId)`. MQDB mode continues to use numeric `_version`. The two fields coexist on the type but only one is written per mode — see §12.2 for why we keep both rather than overloading `_version`.
 
-For backward compat with MQDB mode: keep numeric `_version` as the comparison in `'mqdb'` mode, switch to HLC compare only in `'peer'` mode. The mode flag is read once and cached.
+The mode flag is read once and cached at construction; the LWW branch in `applyMutationToDb` dispatches on it.
 
 ### 5.4 HLC location
 
-HLC lives **per-entity record**, stored on the record itself (replacing `_version`). Not per-scope. This means cross-entity causality is not tracked — but that's fine because LWW only cares about same-entity ordering.
+HLC lives **per-entity record**, stored on the record itself in a dedicated `_hlc` field (see §12.2). Not per-scope. This means cross-entity causality is not tracked — but that's fine because LWW only cares about same-entity ordering.
 
 ## 6. API surface changes
 
@@ -187,7 +187,7 @@ Add:
 syncMode?: 'mqdb' | 'peer';  // default 'mqdb' for backward compat
 ```
 
-No other config additions. `syncTopicPrefix`, `responseTopicPrefix`, etc. still work.
+No other config additions. `syncTopicPrefix`, `responseTopicPrefix`, etc. still work. `syncMode` is immutable per store — see §12.1.
 
 ### 6.2 `replaceScope` semantics
 
@@ -338,7 +338,7 @@ Rough LOC budget for v1 (single-scope, no top-level entity discovery):
 Once this design is approved:
 
 1. **Phase 0**: this doc, plus the `$SYS` fix (already done in `fix/response-topic-default`).
-2. **Phase 1**: HLC implementation + replace `_version` compare in `applyMutationToDb` (gated by mode flag, default `mqdb` keeps numeric `_version`). Tests.
+2. **Phase 1**: HLC type, `_hlc` field on peer-mode records, mode-gated branch in `applyMutationToDb` (default `mqdb` keeps numeric `_version`). Mode persistence + `ModeMismatchError` on boot (§12.1). Tests.
 3. **Phase 2**: Tombstone storage in PersistenceLayer. Tests.
 4. **Phase 3**: Peer-mode SyncEngine — mutations as fire-and-forget events, `request()` throws.
 5. **Phase 4**: `hello` protocol — client publishes, server reacts, manifest diffing.
@@ -346,6 +346,69 @@ Once this design is approved:
 7. **Phase 6**: Documentation updates (README, configuration.md, ARCHITECTURE.md).
 
 Each phase is independently shippable behind the mode flag.
+
+## 12. Mode interaction and migration
+
+The two modes share a codebase, a config type, an IndexedDB schema, and (potentially) a broker. None of that is enough to make them interoperable. This section spells out the invariants the implementation must enforce so that "switching mode" or "running mixed clients" produces a loud error rather than silent data corruption.
+
+### 12.1 `syncMode` is per-store, boot-time, immutable
+
+Set once when `createStore()` is first called against a given local database, and persisted in store metadata on first init. On subsequent boots, the store reads the persisted mode and asserts it matches the config-provided mode:
+
+- Match → proceed.
+- Mismatch → throw `ModeMismatchError` with guidance: "Local data was created in mode X; either revert to X, or call `clearLocalData()` to start fresh in mode Y."
+
+This is cheaper than a real migration and matches the target use cases (a project picks peer at the start, or it doesn't). Apps that legitimately need to switch take the data loss explicitly.
+
+A fresh-install database has no persisted mode; the first init writes whatever is configured.
+
+### 12.2 Versioning fields are mode-segregated
+
+| Mode | Field on each record |
+|---|---|
+| `mqdb` | `_version: number` (server-managed, monotonic) |
+| `peer` | `_hlc: { ts, counter, nodeId }` (client-managed) |
+
+`_version` and `_hlc` are independent fields. Peer-mode records do not write `_version`; MQDB-mode records do not write `_hlc`. `applyMutationToDb`'s LWW compare dispatches on mode and reads only the corresponding field — no runtime polymorphism, no Number-vs-Object narrowing.
+
+This supersedes earlier wording in §5.3 and §5.4 that described HLC as "replacing" `_version`. The earlier draft was wrong: keeping both fields is simpler, isolates the modes' on-disk representations, and means a stray cross-mode record (which 12.1 should prevent but defense in depth is cheap) doesn't silently miscompare.
+
+### 12.3 A scope is single-mode, not mixed
+
+All clients participating in a scope must use the same `syncMode`. The wire formats are not interoperable:
+
+- MQDB clients publish CRUD requests on `$DB/{entity}/create` and consume server-emitted events carrying numeric `_version`.
+- Peer clients publish events directly on `$DB/{root}/{scope}/events/{type}` carrying `_hlc`.
+
+If both run on the same broker scope, MQDB clients ignore peer events (no HLC handler; numeric compare against an object is undefined) and peer clients see server-mediated events that lack `_hlc`. Each side becomes invisible to the other and their writes diverge.
+
+Two enforcement levels:
+
+1. **Documentation** — name this in user-facing docs.
+2. **Mechanical** — peer mode defaults `syncTopicPrefix` to a distinct value (e.g. `$DB-peer`), making cross-mode topic collisions impossible at the broker level. Operators with custom prefixes already handle their own namespacing.
+
+Recommendation: ship both. Default-prefix isolation for the common case; documentation for the override case.
+
+### 12.4 Failure modes if invariants are violated
+
+| Scenario | Symptom |
+|---|---|
+| Same client switches modes without `clearLocalData()` | `ModeMismatchError` on init (12.1) — loud, recoverable |
+| Mixed clients on same scope, default prefixes (12.3 enforced mechanically) | Impossible — topic prefixes don't overlap |
+| Mixed clients on same scope, both overriding `syncTopicPrefix` to the same value | Each side silently drops the other's events; offline-queue mutations queued under one mode flush against the other's wire format and vanish |
+| Peer mode reads MQDB-shaped records (only via 12.1 bypass) | `_hlc` undefined → treated as "lowest possible HLC" → incoming remote always wins → local edits look reverted |
+| MQDB mode reads peer-shaped records (only via 12.1 bypass) | `_version` undefined → server reconciliation overwrites local on first sync |
+| Peer-mode `_tombstones` table persists into a later MQDB-mode run | Inert; never read in MQDB. No corruption risk. (Cleared by `clearLocalData()` in any case.) |
+
+### 12.5 Offline queue and mode
+
+The offline queue (`pending_sync` table) is local-only and mode-flavored: pending mutations carry the wire shape of whichever mode was active when queued. The queue is persisted alongside the store metadata; on boot, if `syncMode` mismatches, the same `ModeMismatchError` from 12.1 fires before any flush is attempted. Users who run `clearLocalData()` to switch modes lose pending offline mutations — documented behavior, not a bug.
+
+### 12.6 What this section does NOT cover
+
+- **Migrating an existing MQDB deployment to peer.** Out of scope. The MQDB server has no HLC concept, so any migration would require a one-time export from MQDB, manufacture HLCs at import time (e.g. `{ts: server_updated_at, counter: 0, nodeId: 'mqdb-import'}`), and accept that the synthetic HLCs become the floor for all subsequent compares. Not v1.
+- **Per-scope mode within a single store.** Not supported — `syncMode` is store-wide.
+- **CRDT-backed records (Appendix B)** if added later: would replace `_hlc` with the CRDT's internal versioning. The mode-segregation invariant in 12.2 still applies; `_version` and the CRDT field stay distinct.
 
 ---
 
