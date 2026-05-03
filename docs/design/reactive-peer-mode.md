@@ -362,7 +362,27 @@ This is cheaper than a real migration and matches the target use cases (a projec
 
 A fresh-install database has no persisted mode; the first init writes whatever is configured.
 
-**Recovery path** — stitch does not currently expose an API to wipe its local state. Phase 1 will add `Store.clearLocalData(): Promise<void>` (deletes the IndexedDB database underlying `MemoryStore` + `PersistenceLayer`, including the offline queue and persisted mode metadata). Until that lands, callers can use the platform escape hatch — `indexedDB.deleteDatabase(dbName)` followed by reload — but the supported flow once Phase 1 ships is `await store.clearLocalData()` then re-`createStore()` with the new `syncMode`.
+**`ModeMismatchError` contract** — a named subclass of `Error` exported from the package root:
+
+```ts
+class ModeMismatchError extends Error {
+  readonly name: 'ModeMismatchError';
+  readonly expected: 'mqdb' | 'peer';   // mode persisted in the local DB
+  readonly actual: 'mqdb' | 'peer';     // mode requested by current config
+  readonly dbName: string;              // IndexedDB name, for the recovery call
+}
+```
+
+Message format: `` `stitch: store at "${dbName}" was initialized in ${expected} mode but config requested ${actual}; call store.clearLocalData() and re-create the store to switch modes` ``. The structured fields let callers branch programmatically without parsing the message.
+
+**Recovery path** — stitch does not currently expose an API to wipe its local state. Phase 1 will add `Store.clearLocalData(): Promise<void>`, with this contract:
+
+- Disconnects the MQTT client (idempotent — safe to call when already disconnected).
+- Deletes the IndexedDB database underlying `MemoryStore` + `PersistenceLayer`, including the offline queue and persisted mode metadata.
+- Clears the stitch-owned `sessionStorage` keys: `stitch_client_id`, `stitch_cached_user`, `stitch_pending_logout`.
+- After the promise resolves, the existing `Store` instance is **unusable** — all further method calls reject with `StoreDisposedError`. The caller must obtain a new instance via `createStore()`.
+
+Until Phase 1 ships, callers can use the platform escape hatch — `indexedDB.deleteDatabase(dbName)` followed by reload — but the supported flow is `await store.clearLocalData()` then re-`createStore()` with the new `syncMode`.
 
 ### 12.2 Versioning fields are mode-segregated
 
@@ -387,7 +407,7 @@ If both run on the same broker scope, MQDB clients ignore peer events (no HLC ha
 Two enforcement levels:
 
 1. **Documentation** — name this in user-facing docs.
-2. **Mechanical** — peer mode defaults `syncTopicPrefix` to a non-`$` value (e.g. `stitch/peer`), making cross-mode topic collisions impossible at the broker level. The prefix deliberately avoids the `$` reservation called out by MQTT 5 §4.7.2 — the same reason PR #11 moved `responseTopicPrefix` off `$SYS`. Operators with custom prefixes already handle their own namespacing.
+2. **Mechanical** — peer mode defaults `syncTopicPrefix` to `stitch/peer`, a non-`$` value chosen so cross-mode topic collisions are impossible at the broker level. The prefix deliberately avoids the `$` reservation called out by MQTT 5 §4.7.2 — the same reason PR #11 moved `responseTopicPrefix` off `$SYS`. Operators with custom prefixes already handle their own namespacing.
 
 Recommendation: ship both. Default-prefix isolation for the common case; documentation for the override case.
 
@@ -397,14 +417,18 @@ Recommendation: ship both. Default-prefix isolation for the common case; documen
 |---|---|
 | Same client switches modes without wiping local state | `ModeMismatchError` on init (12.1) — loud, recoverable via `clearLocalData()` |
 | Mixed clients on same scope, default prefixes (12.3 enforced mechanically) | Impossible — topic prefixes don't overlap |
-| Mixed clients on same scope, both overriding `syncTopicPrefix` to the same value | Silent overwrite, not data loss: each side receives the other's events but skips its version check (the relevant field is absent), so `applyMutationToDb` applies the foreign mutation unconditionally. Last-write-wins ordering is broken in both directions and local edits get clobbered by stale records. |
+| Mixed clients on same scope, both overriding `syncTopicPrefix` to the same value | Silent data loss: each side receives the other's events but skips its version check (the relevant field is absent), so `applyMutationToDb` applies the foreign mutation unconditionally. Last-write-wins ordering is broken in both directions and local edits get clobbered by stale records. |
 | Peer mode reads MQDB-shaped records (only via 12.1 bypass) | `_hlc` undefined → treated as "lowest possible HLC" → incoming remote always wins → local edits look reverted |
 | MQDB mode reads peer-shaped records (only via 12.1 bypass) | `_version` undefined → MQDB's `typeof remoteVersion === 'number'` guard skips and the remote mutation is applied without version check; server reconciliation later overwrites local |
 | Peer-mode `_tombstones` table persists into a later MQDB-mode run | Inert; never read in MQDB. No corruption risk. (Wiped along with the rest of the local DB by `clearLocalData()`.) |
 
 ### 12.5 Offline queue and mode
 
-The offline queue (`pending_sync` table) is local-only and mode-flavored: pending mutations carry the wire shape of whichever mode was active when queued. The queue is persisted alongside the store metadata; on boot, if `syncMode` mismatches, the same `ModeMismatchError` from 12.1 fires before any flush is attempted. Users who wipe local state to switch modes lose pending offline mutations — documented behavior, not a bug.
+The offline queue (`pending_sync` table) is local-only and mode-flavored: pending mutations carry the wire shape of whichever mode was active when queued. The queue is persisted alongside the store metadata; on boot, if `syncMode` mismatches, the same `ModeMismatchError` from 12.1 fires before any flush is attempted.
+
+A fresh-install database is consistent by construction: no persisted mode means no queue (the queue table doesn't exist until first init writes the mode), so there is no "pending mutations under an unknown mode" state to reason about. The mismatch check is reachable only after at least one successful init has written both the mode and the queue table together.
+
+Users who wipe local state to switch modes lose any pending offline mutations — documented behavior, not a bug.
 
 ### 12.6 What this section does NOT cover
 
