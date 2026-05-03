@@ -171,7 +171,7 @@ if (typeof remoteVersion === 'number') {
 
 In peer mode, the LWW compare reads a dedicated `_hlc` field instead of `_version`. The compare is lexicographic on `(ts, counter, nodeId)`. MQDB mode continues to use numeric `_version`. The two fields coexist on the type but only one is written per mode — see §12.2 for why we keep both rather than overloading `_version`.
 
-The mode flag is read once and cached at construction; the LWW branch in `applyMutationToDb` dispatches on it.
+At runtime, the mode flag is read once and cached at construction. The LWW branch in `applyMutationToDb` dispatches on the cached value.
 
 ### 5.4 HLC location
 
@@ -369,7 +369,7 @@ A fresh-install database has no persisted mode; the first init writes whatever i
 | Mode | Field on each record |
 |---|---|
 | `mqdb` | `_version: number` (server-managed, monotonic) |
-| `peer` | `_hlc: { ts, counter, nodeId }` (client-managed) |
+| `peer` | `_hlc: { ts: number; counter: number; nodeId: string }` (client-managed) |
 
 `_version` and `_hlc` are independent fields. Peer-mode records do not write `_version`; MQDB-mode records do not write `_hlc`. `applyMutationToDb`'s LWW compare dispatches on mode and reads only the corresponding field — no runtime polymorphism, no Number-vs-Object narrowing.
 
@@ -391,8 +391,6 @@ Two enforcement levels:
 
 Recommendation: ship both. Default-prefix isolation for the common case; documentation for the override case.
 
-> **Note on the existing `$DB` default.** MQDB-mode `syncTopicPrefix` still defaults to `$DB`, which is technically also under the §4.7.2 reservation but works on most production brokers in practice. Migrating MQDB-mode off `$DB` is out of scope for this design — peer mode just shouldn't inherit the same liability for a brand-new wire protocol.
-
 ### 12.4 Failure modes if invariants are violated
 
 | Scenario | Symptom |
@@ -411,6 +409,7 @@ The offline queue (`pending_sync` table) is local-only and mode-flavored: pendin
 ### 12.6 What this section does NOT cover
 
 - **Migrating an existing MQDB deployment to peer.** Out of scope. The MQDB server has no HLC concept, so any migration would require a one-time export from MQDB, manufacture HLCs at import time (e.g. `{ts: server_updated_at, counter: 0, nodeId: 'mqdb-import'}`), and accept that the synthetic HLCs become the floor for all subsequent compares. Not v1.
+- **Migrating MQDB-mode off `$DB`.** MQDB-mode `syncTopicPrefix` still defaults to `$DB`, which is technically also under the §4.7.2 reservation but works on most production brokers in practice. Out of scope for this design — peer mode just shouldn't inherit the same liability for a brand-new wire protocol.
 - **Per-scope mode within a single store.** Not supported — `syncMode` is store-wide.
 - **CRDT-backed records (Appendix B)** if added later: would replace `_hlc` with the CRDT's internal versioning. The mode-segregation invariant in 12.2 still applies; `_version` and the CRDT field stay distinct.
 
