@@ -411,7 +411,7 @@ Both instances share the same WASM module (one load per page). `memory-store.ts`
 Dynamically imported inside `SyncEngine.connect(serverUrl, wasmModule, getTicket?)`. The engine handles:
 
 - MQTT5 CONNECT with enhanced authentication (`AUTH` / `RE-AUTH` flow) when `getTicket` is provided — the ticket is the JWT, sent as auth data.
-- Request-response correlation via `$SYS/responses/{clientId}/{requestId}` subscription.
+- Request-response correlation via `$DB/clients/{clientId}/{requestId}` subscription (configurable via `responseTopicPrefix`).
 - Topic matching against the `$DB/{entity}/…` topic tree.
 - `x-origin-client-id` user property on every published message so clients can filter their own echoes.
 

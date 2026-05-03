@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **`responseTopicPrefix` default moved off `$SYS`.** Default changed from `$SYS/responses` to `$DB/clients`. The previous default published responses under `$SYS`, which the MQTT 5 spec reserves for broker-internal use (§4.7.2) — production brokers (EMQX, HiveMQ, AWS IoT Core) reject client publishes under `$SYS` by default ACL, so the old default only worked against permissive or custom-configured brokers. Per-request response topic shape is unchanged: `{prefix}/{clientId}/{requestId}`. Deployments overriding `responseTopicPrefix` explicitly are unaffected. Deployments relying on the old default must either set `responseTopicPrefix: '$SYS/responses'` to preserve current behavior or update broker ACLs to accept the new `$DB/clients/...` topic.
+
+### Fixed
+
+- **Brittle response-topic regex.** `handleResponseMessage` in `src/sync-engine.ts` built its match regex by prepending `\\$` to `responseTopicPrefix`, which only worked because the default started with `$`. Any prefix not beginning with `$` (e.g. a custom override like `responses`) produced an invalid regex (`\r` was interpreted as carriage return). Replaced with a `String.prototype.startsWith`-based check that works for any prefix value.
+
 ## 0.4.3
 
 ### Added

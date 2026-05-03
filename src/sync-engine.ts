@@ -79,7 +79,7 @@ class SyncEngineImpl implements SyncEngine {
     this.clientId = clientId;
     this.config = config;
     this.prefix = config.syncTopicPrefix ?? '$DB';
-    this.responsePrefix = config.responseTopicPrefix ?? '$SYS/responses';
+    this.responsePrefix = config.responseTopicPrefix ?? '$DB/clients';
   }
 
   async connect(
@@ -420,10 +420,11 @@ class SyncEngineImpl implements SyncEngine {
   }
 
   private handleResponseMessage(topic: string, payload: Uint8Array): void {
-    const match = topic.match(new RegExp(`^\\${this.responsePrefix}/[^/]+/(.+)$`));
-    if (!match) return;
+    const expected = `${this.responsePrefix}/${this.clientId}/`;
+    if (!topic.startsWith(expected)) return;
+    const requestId = topic.slice(expected.length);
+    if (!requestId || requestId.includes('/')) return;
 
-    const requestId = match[1];
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
       this.pendingRequests.delete(requestId);
