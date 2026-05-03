@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- **Brittle response-topic regex.** `handleResponseMessage` in `src/sync-engine.ts` built its match regex by prepending `\\$` to `responseTopicPrefix`, which only worked because the default started with `$`. Any prefix not beginning with `$` (e.g. a custom override like `responses`) produced an invalid regex (`\r` was interpreted as carriage return). Replaced with a `String.prototype.startsWith`-based check that works for any prefix value.
+- **Brittle response-topic regex.** `handleResponseMessage` in `src/sync-engine.ts` built its match regex by prepending `\\$` to `responseTopicPrefix`, which only worked because the default started with `$`. Any prefix not beginning with `$` (e.g. a custom override like `responses`) produced an invalid regex (`\r` was interpreted as carriage return). Replaced with a `String.prototype.startsWith`-based check that works for any prefix value. As a side effect, the handler now binds to the live `clientId` rather than the previous `[^/]+` wildcard segment — defense in depth, since the response subscription is already scoped per client.
 
 ## 0.4.3
 

@@ -118,6 +118,8 @@ Two modes of delete:
 
 **Tombstone storage** (open question — see §9): each client persists tombstones in a local table (e.g. `_tombstones` keyed by `{entity, id, hlc}`) for some retention period. Old tombstones are pruned. PersistenceLayer would need a tombstone API.
 
+**Resurrection failure mode**: if every peer prunes a tombstone (TTL expires) while at least one peer still has the deleted entity in its local IndexedDB — most likely because that peer was offline at the time of the original delete and longer than the TTL — bootstrap will replay the entity to anyone whose manifest lacks it. The delete effectively un-happens. This is the central correctness cost of bounded tombstone retention; any TTL chosen in §9/Q2 must be large enough to cover the longest expected offline window, or the system must accept rare resurrections. There is no in-protocol fix without unbounded tombstones or a coordinator.
+
 ## 5. Hybrid Logical Clocks (HLC)
 
 ### 5.1 Why HLC
@@ -146,9 +148,7 @@ emit { ts: local.ts, counter: local.counter, nodeId }
 On receiving remote mutation with HLC `r`:
 ```
 local.ts = max(local.ts, r.ts, wallNow)
-if (local.ts === r.ts && local.ts === wallNow)
-  local.counter = max(local.counter, r.counter) + 1
-else if (local.ts === r.ts)
+if (local.ts === r.ts)
   local.counter = max(local.counter, r.counter) + 1
 else if (local.ts === wallNow)
   local.counter += 1
@@ -156,7 +156,7 @@ else
   local.counter = 0
 ```
 
-(Standard HLC update rule. ~30 LOC.)
+(Standard HLC update rule. ~30 LOC. Re-derive from Kulkarni et al. before implementing — the branch structure must agree with the paper.)
 
 ### 5.3 Replacing `_version`
 
