@@ -50,6 +50,7 @@ class MemoryStoreImpl implements MemoryStore {
 
   private readonly config: StoreConfig;
   private readonly allEntities: string[];
+  private readonly topLevelEntitySet: Set<string>;
 
   private versions: Map<string, Map<string, number>> = new Map();
   private listSnapshots: Map<string, Map<string, VersionedSnapshot<Record<string, unknown>[]>>> =
@@ -75,11 +76,16 @@ class MemoryStoreImpl implements MemoryStore {
 
   constructor(config: StoreConfig) {
     this.config = config;
+    this.topLevelEntitySet = new Set(config.topLevelEntities?.map((t) => t.entity) ?? []);
     this.allEntities = [
       config.scope.rootEntity,
       ...config.scope.childEntities,
-      ...(config.topLevelEntities?.map((t) => t.entity) ?? []),
+      ...this.topLevelEntitySet,
     ];
+  }
+
+  private isTopLevelEntity(entity: string): boolean {
+    return this.topLevelEntitySet.has(entity);
   }
 
   ensureReady(): Promise<void> {
@@ -275,13 +281,17 @@ class MemoryStoreImpl implements MemoryStore {
     this.lastOriginTag = this.originTag;
     const { rootEntity, scopeField } = this.config.scope;
 
+    const isTopLevel = this.isTopLevelEntity(entity);
     let scopeId: string | undefined;
     if (event.operation === 'delete') {
       scopeId =
-        this.pendingDeleteContext?.scopeId ?? (entity === rootEntity ? event.id : undefined);
-      if (!scopeId) return;
+        this.pendingDeleteContext?.scopeId ??
+        (entity === rootEntity ? event.id : isTopLevel ? '' : undefined);
+      if (scopeId === undefined) return;
     } else if (entity === rootEntity) {
       scopeId = event.id;
+    } else if (isTopLevel) {
+      scopeId = '';
     } else {
       scopeId = event.data?.[scopeField] as string | undefined;
       if (!scopeId) return;
@@ -386,11 +396,20 @@ class MemoryStoreImpl implements MemoryStore {
   private listRecords(entity: string, scopeId: string): Record<string, unknown>[] {
     if (!this._dbReady || this._corrupted) return [];
     const { rootEntity, scopeField } = this.config.scope;
-    const filterField = entity === rootEntity ? 'id' : scopeField;
+    const isTopLevel = this.isTopLevelEntity(entity);
+    const listOptions = isTopLevel
+      ? {}
+      : {
+          filters: [
+            {
+              field: entity === rootEntity ? 'id' : scopeField,
+              op: 'eq',
+              value: scopeId,
+            },
+          ],
+        };
     try {
-      return this._db!.listSync(entity, {
-        filters: [{ field: filterField, op: 'eq', value: scopeId }],
-      }) as Record<string, unknown>[];
+      return this._db!.listSync(entity, listOptions) as Record<string, unknown>[];
     } catch (err) {
       const wrapped = wrapWasmError(`listSync:${entity}`, err);
       if (this.isWasmCorrupted(err)) {
@@ -447,7 +466,9 @@ class MemoryStoreImpl implements MemoryStore {
       this.originTag = tag ?? null;
       const { rootEntity, scopeField } = this.config.scope;
       const record =
-        entity === rootEntity ? stripNulls(data) : stripNulls({ ...data, [scopeField]: scopeId });
+        entity === rootEntity || this.isTopLevelEntity(entity)
+          ? stripNulls(data)
+          : stripNulls({ ...data, [scopeField]: scopeId });
       this.db.createSync(entity, record);
     } catch (err) {
       console.error(wrapWasmError(`createSync:${entity}`, err));
@@ -483,8 +504,13 @@ class MemoryStoreImpl implements MemoryStore {
       this.originTag = tag ?? null;
       const record = this.read(entity, id);
       if (!record) return;
-      const scopeField = this.config.scope.scopeField;
-      this.pendingDeleteContext = { scopeId: record[scopeField] as string };
+      const { rootEntity, scopeField } = this.config.scope;
+      const scopeId = this.isTopLevelEntity(entity)
+        ? ''
+        : entity === rootEntity
+          ? id
+          : (record[scopeField] as string);
+      this.pendingDeleteContext = { scopeId };
       this.db.deleteSync(entity, id);
     } catch (err) {
       console.error(wrapWasmError(`deleteSync:${entity}`, err));
@@ -510,9 +536,10 @@ class MemoryStoreImpl implements MemoryStore {
     const scopeField = this.config.scope.scopeField;
 
     for (const [entity, records] of Object.entries(data)) {
+      const isTopLevel = this.isTopLevelEntity(entity);
       for (const record of records) {
         try {
-          const rec = { ...record, [scopeField]: scopeId };
+          const rec = isTopLevel ? record : { ...record, [scopeField]: scopeId };
           newDb.createSync(entity, rec);
         } catch (err) {
           console.error(wrapWasmError(`loadScope.createSync:${entity}`, err));
@@ -579,6 +606,7 @@ class MemoryStoreImpl implements MemoryStore {
           recoveredDuringClear = true;
           break;
         }
+        if (this.isTopLevelEntity(entity)) continue;
         const records = this.listRecords(entity, scopeId);
         if (this._corrupted) {
           recoveredDuringClear = true;
