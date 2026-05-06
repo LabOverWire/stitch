@@ -153,15 +153,55 @@ Estimated diff: net negative LOC. The subscribe-and-replay path is mostly *remov
 
 ### 4.4 Server (MQDB)
 
-This is the load-bearing dependency. The server must:
+This is the load-bearing dependency. The server changes are larger than the client changes; this design only works if the server is willing to make them. §4.4.1 below consolidates the full set of requirements so the MQDB owner has one place to scan rather than reassembling them from §2.2, §5, and §8.
 
-- Subscribe to `${prefix}/+/+/hello` (or per-tenant equivalent).
-- Implement the manifest diff and replay logic in §2.2.
-- Emit per-record events on the scope topic instead of (or in addition to) replying to `fetchList` / `fetchOne` requests.
-- Emit version-bump events on child mutations.
+Headline list (full breakdown in §4.4.1):
+
+- Subscribe to `${prefix}/+/+/hello` and implement the manifest diff + replay logic in §2.2.
+- Emit per-record events on the scope topic instead of replying to `fetchList` / `fetchOne` requests.
+- Emit version-bump events on child mutations (replaces the per-mutation client `bumpScopeVersion` round-trip).
 - Surface auth failures via `scope-open-error` events on the response topic.
+- Retain tombstones for deleted records so deletions can be replayed.
+- Advertise protocol version on CONNACK so clients can branch.
+- Throttle hello requests per client per scope.
 
-The server changes are larger than the client changes. This design only works if the server is willing to make them.
+### 4.4.1 Server-side requirements (consolidated)
+
+For a fresh reader: this is the complete server-facing contract. Each item is sourced from elsewhere in the doc; the cross-references identify where the requirement is motivated.
+
+**New protocol handlers**
+
+- [ ] **Subscribe to `${prefix}/+/+/hello`** (per-tenant equivalent acceptable). Source: §2.1.
+- [ ] **On hello: validate auth.** Use existing `userScopeField` rules. On failure, publish `{scopeId, code, message}` to `${responsePrefix}/${clientId}/scope-open-error`. Do not publish replay events. Source: §2.2 step 1.
+- [ ] **On hello: compute manifest diff.** For each record server-side: if absent from client manifest or at lower `_version`, queue for replay. For each record in client manifest: if server has marked deleted (tombstone) at any version newer than client's, queue a delete-replay. If versions match, emit nothing. Source: §2.2 step 2.
+- [ ] **Replay is stateless.** No per-client progress tracking. If the client reconnects mid-replay and republishes hello, the server replays the diff from scratch. Source: §2.4 (implicit; surface explicitly).
+
+**New broadcast behaviors**
+
+- [ ] **Synthetic replay events use real `events/{type}` topics** — not a per-client replay channel. They are indistinguishable on the wire from live mutation events, so existing subscribers see them too and apply them via LWW (idempotent — `_version` matches → no-op). The fan-out cost to existing peers is accepted as the price of keeping a single channel. Source: §2.2 step 2 (implicit).
+- [ ] **Synthetic events carry `sender: '__server_replay__'`** as an MQTT user property (and/or payload field, matching the existing `sender` shape). This reserved value is not "own mutation" for any client, so all clients receive and apply it. The server is responsible for setting it. Source: §2.2 step 2 + §4.2.
+- [ ] **Emit version-bump events on child mutations.** When the server processes a child create / update / delete, it bumps the root's `_version` (and `updatedAt`) and publishes an `events/updated` for the root entity carrying the new version. Replaces the client-driven `bumpScopeVersion` round-trip. Source: §2.5.
+- [ ] **Emit per-record events instead of (or in addition to) batched `fetchList` / `fetchOne` replies.** During the deprecation window (§8 Phase 4), both paths can coexist behind capability negotiation. After the window, `fetchList` / `fetchOne` handlers are removed. Source: §3.4 + §8.
+
+**New persistence requirements**
+
+- [ ] **Tombstone tracking for deleted records.** The server must retain *some* record of deletions (e.g., a `_deleted_at` column with rows kept indefinitely, or a tombstone table) so it can publish `events/deleted` to a client whose manifest still lists a record the server has since removed. If MQDB today does hard deletes, this is a new schema requirement. Tombstone retention policy (forever vs TTL) is open — see Q2 of `reactive-peer-mode.md` §8 for the same trade-off; same recommendation (TTL with documented offline-window limit). Source: §2.2 step 2.
+
+**New connection-time advertisement**
+
+- [ ] **Capability advertisement on CONNACK** via MQTT 5 User Property: e.g. `stitch-protocol-version: 2`. Clients that do not see this property fall back to the legacy `fetchList` flow. This makes incremental rollout possible without a hard cutover. Source: §5/Q2.
+
+**New operational concerns**
+
+- [ ] **Hello rate limiting** per client per scope. A misbehaving or malicious client publishing hello in a tight loop triggers replay every time, multiplied by the fan-out to all current subscribers. Suggested floor: at most one replay per client per scope per N seconds (N to be tuned; start at 5–10 s). Server should silently drop or NACK hellos beyond the limit. Source: this section (not previously called out — gap closed here).
+
+**Deprecation track**
+
+- [ ] **Phase 4 deletes legacy handlers.** Once capability negotiation has been live for one major version and telemetry confirms no clients are falling back, the server's `fetchList`, `fetchOne`, and (once `bumpScopeVersion` is removed client-side) the `bumpScopeVersion` request handlers can be deleted. Source: §8 Phase 4–5.
+
+**Out of scope for v1**
+
+- [ ] **Top-level entity discovery via hello.** Same shape as the per-scope hello but on the discovery topic — server replays the user's accessible scopes. Deferred to a follow-up; v1 keeps `fetchList(rootEntity)` for top-level discovery even after per-scope `replaceScope` goes reactive. Source: §5/Q3.
 
 ## 5. Open questions
 
