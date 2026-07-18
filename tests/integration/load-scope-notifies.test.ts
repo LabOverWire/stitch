@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createStore } from '../../src/store.ts';
 import { projectTaskConfig, uniqueDbName } from '../helpers/fixtures.ts';
 
@@ -30,7 +30,7 @@ describe('memory-store.loadScope: subscriber notification', () => {
 
     await store.replaceScope(projectId);
 
-    expect(callCount).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(callCount).toBeGreaterThan(0));
 
     const snapshot = store.getSnapshot('task', projectId);
     expect(snapshot).toHaveLength(2);
