@@ -10,8 +10,6 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "mqdb-wasm": "^0.3.1",
-    "mqtt5-wasm": "^1.0.0",
     "vue": "^3.5.32"
   },
   "devDependencies": {
@@ -19,6 +17,8 @@
     "@vitejs/plugin-vue": "^6.0.6",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
     "vue-tsc": "^3.0.4"
   }
 }

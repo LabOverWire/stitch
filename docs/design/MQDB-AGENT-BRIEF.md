@@ -2,6 +2,8 @@
 
 **Audience:** whoever (human or agent) is implementing the MQDB server-side changes for stitch's reactive `replaceScope`. This document is **self-contained**: all wire-format excerpts and protocol contracts are quoted inline so you do not need to read stitch's source tree to do the work. Pointers into stitch source are provided for verification only.
 
+> **Note (stitch 0.5.0):** the TypeScript store/sync/persistence layer was replaced by the `@laboverwire/stitch-wasm` package (compiled from the sibling `stitch-rs` repo). `@laboverwire/stitch` is now a thin binding layer. The wire format below is unchanged, but the source pointers that used to name `src/sync-engine.ts` / `src/remote-sync-layer.ts` now refer to that wasm implementation — those `.ts` files were removed.
+
 **Scope:** the changes needed in MQDB to support `docs/design/reactive-scope-open.md`. Peer mode (`docs/design/reactive-peer-mode.md`) is a separate workstream and out of scope for this brief.
 
 ---
@@ -40,7 +42,7 @@ $DB/clients/{clientId}/{requestId}                                        # resp
 
 `{eventType}` in the topic and `operation` in the payload must agree per the mapping in §3.2.
 
-Source of truth in stitch: `parseScopedTopic` at `src/sync-engine.ts:487-507` (regex matches both root-own and child topics).
+Source of truth in stitch: the scoped-topic parser in `@laboverwire/stitch-wasm` (formerly `parseScopedTopic` in `src/sync-engine.ts`, removed in 0.5.0) — matches both root-own and child topics.
 
 ### 3.2 ChangeEvent payload (the one MQDB must emit on event topics)
 
@@ -58,7 +60,7 @@ interface ChangeEvent {
 }
 ```
 
-Validation in stitch (`src/sync-engine.ts:460-470`):
+Validation in stitch (in `@laboverwire/stitch-wasm`; formerly `isValidChangeEvent` in `src/sync-engine.ts`):
 
 - `id` is a non-empty string.
 - `operation` is exactly one of `'Create' | 'Update' | 'Delete'` (note capitalization).
@@ -66,7 +68,7 @@ Validation in stitch (`src/sync-engine.ts:460-470`):
 
 Anything that fails validation is silently dropped by stitch. Make sure replay events conform.
 
-**Topic-to-operation mapping** (`src/sync-engine.ts:540-545`): the topic suffix is lowercase past tense, the payload field is capitalized infinitive:
+**Topic-to-operation mapping** (handled in `@laboverwire/stitch-wasm`): the topic suffix is lowercase past tense, the payload field is capitalized infinitive:
 
 | Topic suffix | Payload `operation` |
 |---|---|
@@ -84,7 +86,7 @@ Stitch sets these on outgoing publishes and reads them on incoming messages. MQD
 |---|---|---|---|
 | `x-origin-client-id` | Yes (own clientId) | Yes — used in `isOwnMutation` filter | Prevents loop-back: stitch ignores any event whose `x-origin-client-id` matches its own clientId. |
 
-`isOwnMutation` (`src/sync-engine.ts:519-523`) returns true if **either** `event.sender === clientId` **or** the user property `x-origin-client-id === clientId`. Both mechanisms are honored; either is sufficient.
+`isOwnMutation` (in `@laboverwire/stitch-wasm`) returns true if **either** `event.sender === clientId` **or** the user property `x-origin-client-id === clientId`. Both mechanisms are honored; either is sufficient.
 
 For replay events MQDB emits, see §3.5 — the `sender` value is reserved.
 
@@ -105,7 +107,7 @@ interface RequestResponse {
 }
 ```
 
-Source: `request()` at `src/sync-engine.ts:745-783` (request side), `checkResponseAndAuth` at `src/sync-engine.ts:628-640` (response side).
+Source: the request/reply envelope and response status handling in `@laboverwire/stitch-wasm` (formerly `request()` and `checkResponseAndAuth` in `src/sync-engine.ts`, removed in 0.5.0).
 
 ### 3.5 NEW: Synthetic replay events
 
@@ -114,7 +116,7 @@ When MQDB processes a `hello` (§4) and emits replay events, those events:
 - Use the **same topics** as live mutations (`events/created` / `events/updated` / `events/deleted`).
 - Use the **same payload shape** as §3.2.
 - Carry `sender: '__server_replay__'` in the payload **AND** set the MQTT user property `x-origin-client-id` to a server-fixed sentinel (suggest: `'__mqdb_server__'`). Neither value matches any real client id, so all clients (including the requesting one) will accept the events.
-- The fan-out cost is intentional: existing peers on the scope receive replay events too. They apply them via the existing `_version` LWW compare (`src/remote-sync-layer.ts:386-399`), which no-ops when the version matches. Bandwidth cost accepted as the price of one channel.
+- The fan-out cost is intentional: existing peers on the scope receive replay events too. They apply them via the existing `_version` LWW compare (in `@laboverwire/stitch-wasm`; formerly `src/remote-sync-layer.ts`), which no-ops when the version matches. Bandwidth cost accepted as the price of one channel.
 
 ### 3.6 NEW: `hello` payload (client → server)
 
@@ -281,16 +283,4 @@ These are flagged in `reactive-scope-open.md` §5 but worth pulling forward:
 
 - `docs/design/reactive-scope-open.md` — full design rationale, client-side changes, phasing, open questions.
 - `docs/design/reactive-peer-mode.md` — adjacent design (peer-coordinated mode); §8/Q2 has tombstone retention discussion that applies here.
-- `src/types.ts` — `ChangeEvent`, `SyncMutation`, `OwnershipError` definitions.
-- `src/sync-engine.ts` — wire-format truth:
-  - L18-26 — `ChangeEvent` interface.
-  - L368-421 — root + top-level event handlers (parsing).
-  - L423-437 — response message handler (for the request/reply path).
-  - L439-457 — scope subscription (`subscribeToScope`).
-  - L460-470 — `isValidChangeEvent` validator.
-  - L487-507 — `parseScopedTopic` regex.
-  - L509-523 — `extractOriginClientId` / `isOwnMutation`.
-  - L525-557 — main scoped event handler (`handleWatchMessage`).
-  - L628-640 — response status/error handling (`checkResponseAndAuth`).
-  - L654-711 — current mutation request/reply (`createEntity`, `updateEntity`, `deleteEntity`, `bumpScopeVersion`).
-  - L745-783 — `request()` envelope.
+- `@laboverwire/stitch-wasm` (compiled from the sibling `stitch-rs` repo) — wire-format truth. As of stitch 0.5.0 the store/sync/persistence layers moved out of this repo into the wasm; the `ChangeEvent` shape, scoped-topic parsing, change-event validation (`isValidChangeEvent`), origin-client filtering (`extractOriginClientId` / `isOwnMutation`), the scoped event handler, the request/reply envelope (`request()` / `checkResponseAndAuth`), and the mutation request handlers (`createEntity` / `updateEntity` / `deleteEntity` / `bumpScopeVersion`) all live there. The former TypeScript sources were removed: `src/sync-engine.ts` (which defined the private `ChangeEvent` interface) and `src/remote-sync-layer.ts`, along with the `SyncMutation` and `OwnershipError` type defs in `src/types.ts`. The inline excerpts in §3 remain the authoritative contract regardless of implementation language.

@@ -1,5 +1,7 @@
 # Key concepts
 
+Sync, persistence, offline queueing, and reconciliation are implemented in the `@laboverwire/stitch-wasm` store. `@laboverwire/stitch` is a thin binding layer that wraps that store — exposing it through `createStore` plus the React and Vue bindings. The concepts below describe how the wasm store behaves; the `StoreConfig` and origin tags you pass through this package drive it.
+
 ## Origin tags
 
 Mutations carry an `originTag` controlling propagation:
@@ -11,7 +13,7 @@ Mutations carry an `originTag` controlling propagation:
 
 ## Offline queue
 
-Local mutations are queued in `pending_sync` and flushed when connected. Before flushing, mutations are consolidated:
+Local mutations are queued in `pending_sync` and flushed when connected. `pendingMutationCount(scopeId)` reports how many are outstanding. Before flushing, mutations are consolidated:
 
 - Multiple updates to same entity → merged (last write wins per field)
 - Insert + updates → single insert with merged data

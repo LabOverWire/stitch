@@ -2,13 +2,44 @@
 
 ## Unreleased
 
+### Added
+
+- _Nothing yet._
+
+## 0.5.0
+
 ### Changed (breaking)
 
-- **`responseTopicPrefix` default moved off `$SYS`.** Default changed from `$SYS/responses` to `$DB/clients`. The previous default published responses under `$SYS`, which the MQTT 5 spec reserves for broker-internal use (§4.7.2) — production brokers (EMQX, HiveMQ, AWS IoT Core) reject client publishes under `$SYS` by default ACL, so the old default only worked against permissive or custom-configured brokers. Per-request response topic shape is unchanged: `{prefix}/{clientId}/{requestId}`. Deployments overriding `responseTopicPrefix` explicitly are unaffected. Deployments relying on the old default must either set `responseTopicPrefix: '$SYS/responses'` to preserve current behavior or update broker ACLs to accept the new `$DB/clients/...` topic.
+- **Store backend replaced by `@laboverwire/stitch-wasm`.** The entire TypeScript store — memory cache, IndexedDB persistence, MQTT sync, offline queue — has been removed. `@laboverwire/stitch` is now a thin, framework-agnostic binding layer: `src/store.ts` is a small adapter that wraps the Rust/WASM `Store` from `@laboverwire/stitch-wasm` (`^0.2.1`), and the package ships the same React and Vue bindings. All store/sync/persistence/offline-queue/MQTT logic now lives inside the wasm (compiled from the sibling `stitch-rs` repo).
+- **`StoreOptions.remote` shape changed.** `remote` is now `{ url, clientId?, ticket?, username?, password? }` instead of `{ serverUrl, getTicket }`. `url` is a `ws://`|`wss://` MQTT endpoint; `ticket` is a JWT for MQTT v5 enhanced auth; `username`/`password` drive classic MQTT password auth. `persistence` is `{ dbName, passphrase? }` — supplying `passphrase` enables AES-GCM encryption.
+- **`responseTopicPrefix` default moved off `$SYS`.** Default changed from `$SYS/responses` to `$DB/clients`. The previous default published responses under `$SYS`, which the MQTT 5 spec reserves for broker-internal use (§4.7.2) — production brokers (EMQX, HiveMQ, AWS IoT Core) reject client publishes under `$SYS` by default ACL, so the old default only worked against permissive or custom-configured brokers. Per-request response topic shape is unchanged: `{prefix}/{clientId}/{requestId}`. The `responseTopicPrefix` config field still exists on `StoreConfig` and is forwarded to the wasm; only the implementation moved. Deployments overriding `responseTopicPrefix` explicitly are unaffected. Deployments relying on the old default must either set `responseTopicPrefix: '$SYS/responses'` to preserve current behavior or update broker ACLs to accept the new `$DB/clients/...` topic.
+- **Subscription callbacks are now asynchronous.** `subscribeToEntity` and `subscribeToScope` callbacks fire one tick after the mutating call resolves, not synchronously within it. Callers that relied on synchronous delivery must not assume the callback has run by the time `create`/`update`/`delete` returns.
+- **`connectionStatus` values are lowercase** — `'connected' | 'connecting' | 'disconnected' | 'error' | 'offline'`.
+
+### Added
+
+- **`@laboverwire/stitch-wasm` dependency** (`^0.2.1`) — the Rust/WASM store, MQTT client, and IndexedDB persistence, bundled as a single wasm-bindgen module.
+- **Pre-initialize tolerance in the adapter.** The wasm store requires `initialize()` before use, but the TS adapter tolerates pre-init access: synchronous reads return empties (`[]` / `{}` / `null` / `0` / `'offline'`) before init, `subscribe*` defer wiring until `initialize()` resolves and then trigger a re-read, and async methods await init. React and Vue hooks are therefore safe to mount before the provider finishes initializing.
+- **`Store.getVersion(scopeId, entity): number`** — reactivity token used by the memory snapshot cache.
+- **`Store.pendingMutationCount(scopeId): Promise<number>`** — offline-queue depth for a scope.
+
+### Removed
+
+- **In-package store internals.** `src/memory-store.ts`, `src/persistence-layer.ts`, `src/remote-sync-layer.ts`, `src/sync-engine.ts`, `src/offline-queue.ts`, `src/internal-utils.ts`, and `src/internal-wasm-error.ts` deleted — their logic now lives in `@laboverwire/stitch-wasm`.
+- **`mqdb-wasm` and `mqtt5-wasm` direct dependencies.** Both are now bundled inside `@laboverwire/stitch-wasm`.
+- **Internal factory exports.** `createMemoryStore`, `createSyncEngine`, `createPersistenceLayer`, `createRemoteSyncLayer`, `createPersistentOfflineQueue`, `createInMemoryOfflineQueue` removed. The only value export is now `createStore`.
+- **`OwnershipError` and `MqdbError` classes** removed — error handling for the wasm store no longer surfaces these TS types.
+- **Internal-layer interface types.** `SyncEngine`, `PersistenceLayer`, `RemoteSyncLayer`, `OfflineQueue`, `MutationSender`, `LocalAccessor`, `PendingMutation`, `ConsolidatedMutation`, `ScopeBundle`, `ScopeState`, `SyncMutation`, `MutationEvent` no longer exported. The public type surface is now `StoreConfig`, `EntityDefinition`, `SchemaField`, `ForeignKeyDefinition`, `ConnectionStatus`, `SortField`, `SortDirection`, `ListFilter`, `Store`, `StoreOptions`, `PersistenceConfig`, `RemoteConfig`, `MemoryStore`, `EntitySchema`, `DefaultSchema`, `EntityKey`, and `OriginTag`. The `MemoryStore` type still exists but is trimmed to `{ getSnapshot, getSnapshotAsMap, subscribeToScope }`.
+- **Consumer Vite `server.fs.allow` / `optimizeDeps.exclude` guidance obsolete.** `stitch-wasm` ships a wasm-bindgen bundler-target ESM module (ESM wasm import proposal), so a consuming Vite app must instead add `vite-plugin-wasm` and `vite-plugin-top-level-await`, and set `build.target: 'esnext'` for production builds (the wasm module and the top-level-await plugin emit top-level `await`). The old `mqdb-wasm`/`mqtt5-wasm` filesystem-allow and dep-exclude instructions no longer apply and must be removed. This repo's `vitest.config.ts` now uses those two plugins and the browser test suite loads the real wasm.
 
 ### Fixed
 
-- **Brittle response-topic regex.** `handleResponseMessage` in `src/sync-engine.ts` built its match regex by prepending `\\$` to `responseTopicPrefix`, which only worked because the default started with `$`. Any prefix not beginning with `$` (e.g. a custom override like `responses`) produced an invalid regex (`\r` was interpreted as carriage return). Replaced with a `String.prototype.startsWith`-based check that works for any prefix value. As a side effect, the handler now binds to the live `clientId` rather than the previous `[^/]+` wildcard segment — defense in depth, since the response subscription is already scoped per client.
+- **React/Vue init-order safety.** Because the adapter tolerates pre-init access (see Added), hooks like `useEntitySnapshot`, `useScopedEntities`, and `useRootEntityList` no longer read stale or throwing state when a component mounts before the provider's `initialize()` resolves — `subscribe*` wires up and re-reads once init completes.
+- **Brittle response-topic parsing** now lives in `@laboverwire/stitch-wasm`. The former `src/sync-engine.ts` regex that split `{prefix}/{clientId}/{requestId}` on a fixed segment count is gone along with the file; the wasm handles response-topic matching against the configured `responseTopicPrefix`.
+
+### Unchanged
+
+- **React bindings** — `StoreProvider`, `AuthProvider`, `useEntitySnapshot`, `useScopedEntities`, `useRootEntityList`, `useTopLevelEntities`, `useChildCounts`, `useConnectionStatus`, `useSyncScope`, `useStore` — and **Vue bindings** — `StoreRoot`, `StitchAuth`, matching composables, and `useStore` — keep the same API. `Store.reconnect(serverUrl, getTicket?)` also keeps its signature: the adapter resolves the ticket via `getTicket` and runs any reconnect validator.
 
 ## 0.4.3
 

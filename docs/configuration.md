@@ -20,8 +20,8 @@
 
 | Field | Type | Description |
 |---|---|---|
-| `persistence` | `{ dbName: string }` | Enable IndexedDB persistence |
-| `remote` | `{ serverUrl: string, getTicket?: () => Promise<string> }` | Enable MQTT sync with optional JWT auth |
+| `persistence` | `{ dbName: string, passphrase?: string }` | Enable IndexedDB persistence. A `passphrase` turns on AES-GCM encryption at rest |
+| `remote` | `{ url: string, clientId?: string, ticket?: string, username?: string, password?: string }` | Enable MQTT sync. `url` is a `ws://`/`wss://` MQTT endpoint; `ticket` is a JWT for MQTT v5 enhanced auth; `username`/`password` drive classic MQTT password auth |
 
 ## Scope model
 

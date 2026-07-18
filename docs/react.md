@@ -4,9 +4,23 @@
 npm install react@^19.0.0
 ```
 
+The store backend ships as WebAssembly (`@laboverwire/stitch-wasm`), so a consuming
+app's Vite config must enable `vite-plugin-wasm` and `vite-plugin-top-level-await`:
+
+```ts
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
+
+export default defineConfig({
+  plugins: [react(), wasm(), topLevelAwait()],
+  build: { target: 'esnext' },
+});
+```
+
 ## Quick start
 
 ```tsx
+import { useEffect } from 'react';
 import { createStore } from '@laboverwire/stitch';
 import type { StoreConfig } from '@laboverwire/stitch';
 import {
@@ -47,9 +61,11 @@ const config: StoreConfig = {
   },
 };
 
+const authTicket = '<jwt-ticket>';
+
 const store = createStore<Schema>(config, {
   persistence: { dbName: 'my-app' },
-  remote: { serverUrl: 'wss://mqtt.example.com', getTicket: () => fetchAuthTicket() },
+  remote: { url: 'wss://mqtt.example.com', ticket: authTicket },
 });
 
 function App() {
@@ -65,7 +81,7 @@ function App() {
 function ProjectView({ scopeId }: { scopeId: string }) {
   const { store } = useStore();
   const { syncing, openScope } = useSyncScope(store, scopeId);
-  const tasks = useEntitySnapshot(store, scopeId, 'task');
+  const tasks = useEntitySnapshot(store, scopeId, 'task') as Task[];
 
   useEffect(() => { void openScope(); }, [openScope]);
 
@@ -78,7 +94,24 @@ function ProjectView({ scopeId }: { scopeId: string }) {
 }
 ```
 
-Because `createStore<Schema>()` is generic, `tasks` above is typed as `Task[]` — no `as string` casts per field.
+The schema generic on `createStore<Schema>()` types the direct `Store<Schema>` methods
+(`read`, `getSnapshot`, `list`, etc.), but it does **not** reach the snapshot hooks. The
+entity-snapshot hooks are not schema-generic: `useEntitySnapshot(store, scopeId, 'task')`
+returns `Record<string, unknown>[]` regardless of the store's schema, and `store` from
+`useStore()` is a plain non-generic `Store`. Cast the hook result to your app's record type
+(e.g. `as Task[]`) when you need field-level typing, as in the example above.
+
+`remote.ticket` is a JWT for MQTT v5 enhanced auth; use `remote.username`/`remote.password`
+for classic MQTT password auth instead. `remote.url` is a `ws://`/`wss://` endpoint. Passing
+`persistence.passphrase` enables AES-GCM encryption of the local database.
+
+## Pre-init tolerance
+
+Hooks are safe to mount before the store finishes initializing. `<StoreProvider>` calls
+`store.initialize()` on mount, but the adapter tolerates access before that resolves:
+synchronous reads return empties (`[]` / `{}` / `null` / `0` / `'offline'`), and `subscribe*`
+calls defer wiring until initialization completes and then trigger a re-read. You don't need
+to gate hooks behind an "initialized" flag.
 
 ## Providers
 
@@ -102,6 +135,10 @@ Compose them; nest `<AuthProvider>` inside `<StoreProvider>`:
   </AuthProvider>
 </StoreProvider>
 ```
+
+The optional `serverUrl`/`getTicket` props on `<StoreProvider>` drive reconnect-on-wake:
+after the tab has been hidden past the stale threshold, the provider calls
+`store.reconnect(serverUrl, getTicket)`.
 
 ## Hooks
 
