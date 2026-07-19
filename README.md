@@ -31,6 +31,7 @@ const tasks = store.getSnapshot('task', 'project-abc');
 - [Concepts](./docs/concepts.md) — origin tags, offline queue, reconciliation, connection resilience
 - [Vite consumer guide](./docs/vite-consumer.md) — consuming apps must add `vite-plugin-wasm` (and `vite-plugin-top-level-await`) so the bundler can load the WASM module
 - [Architecture](./ARCHITECTURE.md) — layer composition, data flow, invariants
+- [Upgrading to 0.5.0](./docs/upgrading-to-0.5.md) — breaking changes and step-by-step upgrade from 0.4.x
 - [Changelog](./CHANGELOG.md)
 - [Releasing](./RELEASING.md)
 
