@@ -6,6 +6,8 @@
 
 This document is a **design proposal** to be reviewed and corrected before implementation. Open questions are flagged inline.
 
+> **Superseded context — predates the 0.5.0 backend swap.** This design was written against the old TypeScript store implementation. As of `@laboverwire/stitch` 0.5.0 the store / sync / persistence / offline-queue / MQTT stack moved into the Rust/WASM package `@laboverwire/stitch-wasm`; `@laboverwire/stitch` is now a thin binding layer (`src/store.ts` adapts the wasm `Store`). The five TypeScript files this doc references — `sync-engine.ts`, `remote-sync-layer.ts`, `persistence-layer.ts`, `offline-queue.ts`, `memory-store.ts` — no longer exist here; that logic now lives inside stitch-wasm (compiled from the sibling `stitch-rs` repo), and the module names, file paths, and line numbers this doc attributes to **those five deleted files** must be re-mapped onto the Rust codebase before implementation. This does **not** apply blanket to all of §7/§10: `src/types.ts` and `src/store.ts` still exist in this package. The `syncMode` config field and HLC type in §7.4 would still be added to `src/types.ts`, and the `replaceScope` branch in §7.5 lives in the `src/store.ts` wasm adapter (or is forwarded into the wasm) — not on the Rust side. The design intent below is unchanged.
+
 ---
 
 ## 1. Motivation
@@ -15,7 +17,7 @@ Stitch today depends on MQDB as a central coordinator: clients publish CRUD requ
 For stitch to be adoptable without committing the user to MQDB, the library needs a mode where:
 
 - The MQTT broker is just a message bus (any MQTT 5 broker works).
-- Clients each persist their own state (already true via `PersistenceLayer` / IndexedDB).
+- Clients each persist their own state (already true — stitch persists each client's state to IndexedDB).
 - Clients coordinate among themselves to converge on a shared view of the data.
 
 The primary use case is **single-user, multi-device sync** (one user editing on phone + laptop + tablet). Multi-user collaboration on shared data has the same coordination shape, just with more concurrent writers.
@@ -67,11 +69,11 @@ Client publishes to the events topic at QoS 1 with `retain=false`:
 }
 ```
 
-Broker fans out to all subscribers (peers and the publisher itself; publisher filters its own via the existing `x-origin-client-id` user property check at `sync-engine.ts:519-523`).
+Broker fans out to all subscribers (peers and the publisher itself; publisher filters its own via the existing `x-origin-client-id` user property check, now handled inside stitch-wasm).
 
-**No await on a response.** The publish promise resolves on PUBACK; that is the success signal. The offline queue (`src/offline-queue.ts`) handles broker disconnection.
+**No await on a response.** The publish promise resolves on PUBACK; that is the success signal. The offline queue (now inside stitch-wasm) handles broker disconnection.
 
-Compare to today's `createEntity` (sync-engine.ts:654-672) which sets a `responseTopic` and awaits a JSON `{status, code, data}` reply with a 10s timeout. That whole shape is gone.
+Compare to today's `createEntity` (in the wasm sync engine) which sets a `responseTopic` and awaits a JSON `{status, code, data}` reply with a 10s timeout. That whole shape is gone.
 
 ### 4.2 Bootstrap (new client opens scope)
 
@@ -92,8 +94,8 @@ Client A (new)                                Peers B, C (online with state)
                                                  events/deleted
 6. Receive events on events/#
    (already subscribed in step 1)
-7. Apply each via existing
-   applyMutationToDb (LWW by hlc)
+7. Apply each via applyMutationToDb
+   (LWW by hlc), now inside stitch-wasm
 8. UI re-renders reactively as
    each entity arrives
 ```
@@ -106,17 +108,17 @@ The `manifest` is `Array<{id, hlc}>` — what the new client already has from lo
 
 Identical to bootstrap. On reconnect, client publishes a fresh `hello` with its current manifest. Peers reactively send the delta. No special offline-detection path needed.
 
-The existing `OfflineQueue` flush already handles outgoing-mutations-during-offline correctly; this design touches only the inbound side.
+The offline queue flush (now inside stitch-wasm) already handles outgoing-mutations-during-offline correctly; this design touches only the inbound side.
 
 ### 4.4 Deletes
 
 Two modes of delete:
 
-**Locally-initiated**: client publishes `events/deleted` with `{operation: "Delete", entity, id, hlc}`. Peers apply via existing `applyMutationToDb` delete branch.
+**Locally-initiated**: client publishes `events/deleted` with `{operation: "Delete", entity, id, hlc}`. Peers apply via the `applyMutationToDb` delete branch, now inside stitch-wasm.
 
 **Tombstone replay** (during bootstrap): when a peer responds to `hello` and detects an entity in the new client's manifest that the peer no longer has, the peer needs to know whether the entity was deleted (vs. simply never existed). This requires the peer to retain a tombstone.
 
-**Tombstone storage** (open question — see §9): each client persists tombstones in a local table (e.g. `_tombstones` keyed by `{entity, id, hlc}`) for some retention period. Old tombstones are pruned. PersistenceLayer would need a tombstone API.
+**Tombstone storage** (open question — see §9): each client persists tombstones in a local table (e.g. `_tombstones` keyed by `{entity, id, hlc}`) for some retention period. Old tombstones are pruned. The wasm persistence layer would need a tombstone API.
 
 **Resurrection failure mode**: if every peer prunes a tombstone (TTL expires) while at least one peer still has the deleted entity in its local IndexedDB — most likely because that peer was offline at the time of the original delete and longer than the TTL — bootstrap will replay the entity to anyone whose manifest lacks it. The delete effectively un-happens. This is the central correctness cost of bounded tombstone retention; any TTL chosen in §9/Q2 must be large enough to cover the longest expected offline window, or the system must accept rare resurrections. There is no in-protocol fix without unbounded tombstones or a coordinator.
 
@@ -160,7 +162,7 @@ else
 
 ### 5.3 Replacing `_version`
 
-Today, `applyMutationToDb` (remote-sync-layer.ts:386-399) compares numeric `_version` and `updatedAt` for LWW:
+Today, `applyMutationToDb` (in the wasm remote-sync layer) compares numeric `_version` and `updatedAt` for LWW:
 
 ```ts
 if (typeof remoteVersion === 'number') {
@@ -204,21 +206,23 @@ App authors who need a "loaded" gate can implement one themselves: e.g. observe 
 
 Throws in peer mode: `Error('request() is not supported in peer sync mode')`. `Store.request` on the public API documents this as a no-op in peer mode.
 
-### 6.4 `bumpScopeVersion`
+### 6.4 Scope-level versioning
 
-No-op in peer mode. Per-entity HLC handles ordering; there is no scope-level version.
+Scope-level version bumping is an internal wasm concept, not a member of the public `Store` interface. In peer mode it is a no-op: per-entity HLC handles ordering, so there is no scope-level version to bump.
 
-### 6.5 `fetchList` / `fetchOne`
+### 6.5 `list` / `listRootEntities`
 
-Not used in peer mode. The "initial state" comes from local IndexedDB (already-persisted) plus reactive `hello` replies from peers. There is no `fetchList(rootEntity)` to enumerate all root entities the user has access to — that information must arrive via the same `hello` mechanism, scoped at the user level (see §10 for top-level entities).
+The public read methods `list(entity, filter?)` and `listRootEntities(sort?)` still exist in peer mode, but they read from local IndexedDB (via the wasm) rather than a server. The "initial state" comes from that already-persisted local data plus reactive `hello` replies from peers. In peer mode there is no server-backed enumeration of all root entities the user has access to — that information must arrive via the same `hello` mechanism, scoped at the user level (see §10 for top-level entities).
 
 ## 7. What changes in the existing code
 
-### 7.1 `src/sync-engine.ts`
+> §7.1–§7.3 describe the pre-0.5.0 TypeScript modules (`sync-engine.ts`, `remote-sync-layer.ts`, `persistence-layer.ts`). That code no longer exists here — it now lives inside `@laboverwire/stitch-wasm` (the `stitch-rs` repo) — so the module names and line numbers in those subsections are historical and must be re-mapped onto the Rust codebase before implementation. §7.4 (`src/types.ts`) and §7.5 (`src/store.ts`) reference files that **still exist** in this TS package; those changes stay on the TypeScript side. The design intent per module is still accurate.
+
+### 7.1 sync engine (formerly `src/sync-engine.ts`)
 
 - Constructor reads `config.syncMode`, branches on it for the relevant methods.
-- `createEntity` / `updateEntity` / `deleteEntity` in peer mode: compute the events topic, publish QoS 1 retain=false, no responseTopic, no await on reply. `data.id` (already injected by `StoreImpl.create` at `store.ts:239`) is the entity ID; no server-generated ID.
-- `bumpScopeVersion`: no-op in peer mode.
+- `createEntity` / `updateEntity` / `deleteEntity` in peer mode: compute the events topic, publish QoS 1 retain=false, no responseTopic, no await on reply. `data.id` (already injected on create before dispatch) is the entity ID; no server-generated ID.
+- scope-level version bump: no-op in peer mode.
 - `openScope`: in peer mode, subscribe to `events/#`, publish `hello` with manifest (read from local accessor), return `{root: null, children: {}, version: 0, bufferedMutations: []}`. The state arrives reactively after return.
 - `subscribeToTopLevel`: same `events/#` subscription.
 - `handleWatchMessage`: same path. In peer mode, "buffered while awaitingState" doesn't apply (we don't await state).
@@ -227,27 +231,30 @@ Not used in peer mode. The "initial state" comes from local IndexedDB (already-p
 
 Estimated diff: ~250-400 LOC added, mostly contained in mode-branching `if` blocks. Most of the existing connection / reconnect / auth machinery is unchanged.
 
-### 7.2 `src/remote-sync-layer.ts`
+### 7.2 remote-sync layer (formerly `src/remote-sync-layer.ts`)
 
 - `applyMutationToDb`: replace numeric `_version` compare with HLC compare. Single localized change.
 - `syncRootEntityList`: in peer mode, this becomes "subscribe to top-level pattern, publish hello, react." Major refactor. May warrant extraction into a separate helper.
 - `reconcileChildren`: not invoked in peer mode (no synchronous server snapshot to reconcile against).
 
-### 7.3 `src/persistence-layer.ts`
+### 7.3 persistence layer (formerly `src/persistence-layer.ts`)
 
 - New: tombstone storage. A `_tombstones` table keyed by `(entity, id)`, holding `{hlc, deletedAt}`. New methods: `markDeleted(entity, id, hlc)`, `getTombstone(entity, id)`, `pruneTombstones(beforeTimestamp)`.
 - `delete(entity, id)` writes a tombstone before (or instead of) actually removing the row in peer mode.
 
-### 7.4 `src/types.ts`
+### 7.4 `src/types.ts` (still exists in this package)
 
 - `StoreConfig.syncMode?: 'mqdb' | 'peer'`.
 - HLC type definition.
 - Entity-level HLC field (replaces or augments `_version` in peer mode).
 
-### 7.5 `src/store.ts`
+### 7.5 `src/store.ts` (still exists — thin wasm adapter)
 
-- No changes to mutation flow (already mode-agnostic at this layer).
-- `replaceScope` may need a small branch: in peer mode, skip the `await sync.openScope` long path and just subscribe + publish `hello`.
+The current `src/store.ts` is a thin adapter over the wasm `Store`: its `replaceScope` simply forwards to the wasm via `return this.#afterReady(() => this.#inner.replaceScope(scopeId));`, with no `sync.openScope` call and no reconcile logic (all of that moved into the wasm). The description below reflects the **pre-0.5.0** store.ts, which had the mutation flow and the `openScope` long path inline; it no longer matches the file that currently bears this path.
+
+- Pre-0.5.0: no changes to mutation flow (already mode-agnostic at that layer).
+- Pre-0.5.0: `replaceScope` needed a small branch — in peer mode, skip the `await sync.openScope` long path and just subscribe + publish `hello`.
+- Post-0.5.0: the mode branch belongs inside the wasm's `replaceScope`; the TS adapter forwards the call unchanged.
 
 ## 8. Open questions
 
@@ -289,7 +296,7 @@ Recommendation: each peer publishes hello on every connect. Symmetric and doesn'
 
 ### Q4: Multiple-scope users
 
-Today, `syncRootEntityList` enumerates all root entities a user has access to via `fetchList(rootEntity)` — server-side filtering by `userScopeField`. In peer mode, there's no server to query.
+Today, `listRootEntities` enumerates all root entities a user has access to — server-side filtering by `userScopeField`. In peer mode, there's no server to query.
 
 Options:
 - The user's "list of accessible scopes" is enumerated by subscribing to a top-level topic and reactively collecting hellos / mutation events. New top-level topic: `$DB/{root}/+/hello` — every scope's hello announcements are visible. Client builds the scope list reactively.
@@ -304,7 +311,7 @@ If many mutations happen at the exact same `wallNow` ms, `counter` increments. J
 
 ### Q6: `sender` field vs HLC.nodeId
 
-Today the `sender` field is used for own-message filtering (`isOwnMutation` at sync-engine.ts:519-523). In peer mode, HLC.nodeId could play the same role. Should we collapse them?
+Today the `sender` field is used for own-message filtering (`isOwnMutation`, now handled inside stitch-wasm). In peer mode, HLC.nodeId could play the same role. Should we collapse them?
 
 Recommendation: keep both for now (HLC for ordering, sender for filtering) — simpler diff, no semantic change. Collapse if the duplication bothers us in code review.
 
@@ -313,25 +320,25 @@ Recommendation: keep both for now (HLC for ordering, sender for filtering) — s
 - **Peer that has unique data and is permanently offline.** That data is unreachable. No protocol short of CRDT replication to all peers solves this without a server.
 - **Concurrent writes during a network partition** that resolve to LWW. One side's edit wins; the other is lost. CRDTs would merge both. If multi-user concurrent edits during partition is a real requirement, we need CRDTs and this design doesn't apply.
 - **Strong consistency.** Stitch in peer mode is eventually consistent. Apps requiring read-your-writes consistency on a different device need MQDB mode.
-- **Cross-scope queries / search.** No `fetchList(entity, filters)` against a global index. Apps needing this need MQDB mode.
+- **Cross-scope queries / search.** No `list(entity, filter?)` against a global server-side index. Apps needing this need MQDB mode.
 
 These are honest trade-offs of going masterless. They should be documented prominently in the user-facing docs once this ships.
 
 ## 10. Estimated scope
 
-Rough LOC budget for v1 (single-scope, no top-level entity discovery):
+Rough LOC budget for v1 (single-scope, no top-level entity discovery). The first three files reflect the pre-0.5.0 TypeScript layout and must be re-mapped onto the stitch-rs modules that now own this logic. On the TypeScript side of this package, only `src/types.ts` takes a real change (the `syncMode` field + HLC type); `src/store.ts` forwards `replaceScope` to the wasm unchanged, so its mode branch lives in the wasm:
 
-| File | Net change |
+| Module (pre-0.5.0 file) | Net change |
 |---|---|
-| `src/sync-engine.ts` | +250 |
-| `src/remote-sync-layer.ts` | +60 (HLC compare, hello plumbing) |
-| `src/persistence-layer.ts` | +120 (tombstone API) |
-| `src/store.ts` | +30 (replaceScope branch) |
-| `src/types.ts` | +40 (HLC type, syncMode field) |
-| New: `src/hlc.ts` | +60 (HLC algorithm) |
+| sync engine (`src/sync-engine.ts`, now in wasm) | +250 |
+| remote-sync layer (`src/remote-sync-layer.ts`, now in wasm) | +60 (HLC compare, hello plumbing) |
+| persistence layer (`src/persistence-layer.ts`, now in wasm) | +120 (tombstone API) |
+| `src/store.ts` (still exists) | ~0 (replaceScope forwarded to wasm unchanged; mode branch lives in wasm) |
+| `src/types.ts` (still exists) | +40 (HLC type, syncMode field) |
+| New: HLC module (in wasm) | +60 (HLC algorithm) |
 | Tests | +500 (unit + integration with embedded broker e.g. aedes) |
 
-~1100 LOC. Self-contained behind a config flag — MQDB mode is unaffected.
+~1050 LOC. Self-contained behind a config flag — MQDB mode is unaffected.
 
 ## 11. Implementation phasing
 
@@ -339,8 +346,8 @@ Once this design is approved:
 
 1. **Phase 0**: this doc, plus the `$SYS` fix (already done in `fix/response-topic-default`).
 2. **Phase 1**: HLC type, `_hlc` field on peer-mode records, mode-gated branch in `applyMutationToDb` (default `mqdb` keeps numeric `_version`). Mode persistence + `ModeMismatchError` on boot + `Store.clearLocalData()` recovery API (§12.1). Tests.
-3. **Phase 2**: Tombstone storage in PersistenceLayer. Tests.
-4. **Phase 3**: Peer-mode SyncEngine — mutations as fire-and-forget events, `request()` throws.
+3. **Phase 2**: Tombstone storage in the persistence layer. Tests.
+4. **Phase 3**: Peer-mode sync engine — mutations as fire-and-forget events, `request()` throws.
 5. **Phase 4**: `hello` protocol — client publishes, server reacts, manifest diffing.
 6. **Phase 5**: Integration tests with embedded MQTT broker (aedes or similar).
 7. **Phase 6**: Documentation updates (README, configuration.md, ARCHITECTURE.md).
@@ -378,7 +385,7 @@ Message format: `` `stitch: store at "${dbName}" was initialized in ${expected} 
 **Recovery path** — stitch does not currently expose an API to wipe its local state. Phase 1 will add `Store.clearLocalData(): Promise<void>`, with this contract:
 
 - Disconnects the MQTT client (idempotent — safe to call when already disconnected).
-- Deletes the IndexedDB database underlying `MemoryStore` + `PersistenceLayer`, including the offline queue and persisted mode metadata.
+- Deletes the IndexedDB database underlying the memory store + persistence layer, including the offline queue and persisted mode metadata.
 - Clears the stitch-owned `sessionStorage` keys: `stitch_client_id`, `stitch_cached_user`, `stitch_pending_logout`.
 - After the promise resolves, the existing `Store` instance is **unusable** — all further method calls reject with `StoreDisposedError`. The caller must obtain a new instance via `createStore()`.
 

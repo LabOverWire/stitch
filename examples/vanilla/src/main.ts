@@ -51,8 +51,8 @@ const options: StoreOptions = {
   ...(serverUrl
     ? {
         remote: {
-          serverUrl,
-          ...(authTicket ? { getTicket: async () => authTicket } : {}),
+          url: serverUrl,
+          ...(authTicket ? { ticket: authTicket } : {}),
         },
       }
     : {}),

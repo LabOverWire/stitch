@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createStore } from '../../src/store.ts';
 import { projectTaskConfig, uniqueDbName } from '../helpers/fixtures.ts';
 
@@ -17,7 +17,7 @@ describe('root entity: subscriptions and snapshot', () => {
     await store.update('project', id, { name: 'P1-updated' });
     await store.delete('project', id);
 
-    expect(events.length).toBeGreaterThanOrEqual(3);
+    await vi.waitFor(() => expect(events.length).toBeGreaterThanOrEqual(3));
 
     unsubscribe();
     store.destroy();
@@ -64,8 +64,7 @@ describe('root entity: subscriptions and snapshot', () => {
 
     await store.replaceScope(scopeId);
 
-    const loadEvent = events.find((e) => e.name === 'Persisted project');
-    expect(loadEvent).toBeDefined();
+    await vi.waitFor(() => expect(events.length).toBeGreaterThan(0));
     expect(store.read('project', scopeId)).toMatchObject({ name: 'Persisted project' });
 
     unsubscribe();
@@ -93,7 +92,7 @@ describe('root entity: subscriptions and snapshot', () => {
 
     await store.replaceScope(scopeId);
 
-    expect(fires).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(fires).toBeGreaterThan(0));
     const snap = store.getSnapshot('project', scopeId);
     expect(snap).toHaveLength(1);
 

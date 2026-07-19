@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createStore } from '../../src/store.ts';
 import { projectTaskConfig, uniqueDbName } from '../helpers/fixtures.ts';
 
@@ -6,7 +6,12 @@ describe('smoke: core store operations', () => {
   it('memory-only store supports create/read/update/delete', async () => {
     const config = projectTaskConfig({
       entities: {
-        project: { fields: [{ name: 'id', type: 'string' }, { name: 'name', type: 'string' }] },
+        project: {
+          fields: [
+            { name: 'id', type: 'string' },
+            { name: 'name', type: 'string' },
+          ],
+        },
         task: {
           fields: [
             { name: 'id', type: 'string' },
@@ -70,7 +75,7 @@ describe('smoke: core store operations', () => {
     await store.update('project', root.id as string, { name: 'P1-updated' });
     await store.delete('project', root.id as string);
 
-    expect(events.length).toBeGreaterThanOrEqual(3);
+    await vi.waitFor(() => expect(events.length).toBeGreaterThanOrEqual(3));
 
     unsubscribe();
     store.destroy();
