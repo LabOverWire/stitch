@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react(), wasm(), topLevelAwait()],
-  build: { target: 'esnext' },
+  build: { target: 'esnext', chunkSizeWarningLimit: 1000 },
   resolve: {
     alias: {
       '@laboverwire/stitch/react': resolve(here, '../../src/react/index.ts'),
