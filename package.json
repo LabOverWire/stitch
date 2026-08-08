@@ -74,7 +74,7 @@
     }
   },
   "dependencies": {
-    "@laboverwire/stitch-wasm": "^0.2.1"
+    "@laboverwire/stitch-wasm": "^0.2.2"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -91,28 +91,28 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@testing-library/react": "^16.3.2",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.18",
     "@vitest/browser": "^4.1.10",
     "@vitest/browser-playwright": "^4.1.10",
     "@vitest/ui": "^4.1.10",
     "esbuild": "^0.28.1",
-    "eslint": "^10.2.1",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.5.0",
+    "globals": "^17.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "playwright": "^1.59.1",
-    "prettier": "^3.8.3",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "rollup": "^4.62.2",
+    "playwright": "^1.62.1",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "rollup": "^4.62.4",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
+    "typescript-eslint": "^8.66.0",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^4.1.10",
-    "vue": "^3.3.0"
+    "vue": "^3.5.41"
   },
   "overrides": {
     "uuid": "^11.1.1"
