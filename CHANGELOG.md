@@ -6,6 +6,12 @@
 
 - _Nothing yet._
 
+## 0.5.1
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.2.2`. That release implements the optional `StoreConfig` override fields already declared in 0.5.0 — `userScopeField`, `versionField`, `updatedAtField`, `syncTopicPrefix`, `responseTopicPrefix`, `topLevelEntities`, and `localOnlyEntities` — which the previous engine accepted in the type surface but did not honor. No `@laboverwire/stitch` API or type changes; existing `^0.2.1` consumers already resolving 0.2.2 are unaffected.
+
 ## 0.5.0
 
 ### Changed (breaking)
