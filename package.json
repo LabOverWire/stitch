@@ -74,7 +74,7 @@
     }
   },
   "dependencies": {
-    "@laboverwire/stitch-wasm": "^0.2.2"
+    "@laboverwire/stitch-wasm": "^0.3.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",
