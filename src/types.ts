@@ -65,6 +65,7 @@ export interface RemoteConfig {
   ticket?: string;
   username?: string;
   password?: string;
+  autoConnect?: boolean;
 }
 
 export interface StoreOptions {
