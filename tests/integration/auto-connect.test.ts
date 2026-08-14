@@ -1,7 +1,9 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { createStore } from '../../src/store.ts';
 import { projectTaskConfig, uniqueDbName } from '../helpers/fixtures.ts';
 import type { RemoteConfig, Store } from '../../src/types.ts';
+
+const UNROUTABLE = 'ws://127.0.0.1:49871';
 
 describe('remote.autoConnect', () => {
   const stores: Store[] = [];
@@ -22,19 +24,23 @@ describe('remote.autoConnect', () => {
     return store;
   }
 
-  it('autoConnect:false skips the startup connect and stays offline', async () => {
-    const store = open({ url: 'ws://127.0.0.1:1', autoConnect: false });
+  it('autoConnect:false does not start a connection on initialize', async () => {
+    const store = open({ url: UNROUTABLE, autoConnect: false });
     await store.initialize();
 
-    expect(store.connectionStatus).toBe('offline');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(store.connectionStatus).not.toBe('connecting');
+    expect(store.connectionStatus).not.toBe('connected');
+    expect(store.isReconnecting).toBe(false);
     expect(store.hasRemote).toBe(true);
   });
 
-  it('default (autoConnect omitted) attempts the connect on initialize', async () => {
-    const store = open({ url: 'ws://127.0.0.1:1' });
+  it('default (autoConnect omitted) starts the connection on initialize', async () => {
+    const store = open({ url: UNROUTABLE });
     await store.initialize();
 
-    expect(store.connectionStatus).not.toBe('offline');
+    await vi.waitFor(() => expect(store.connectionStatus).toBe('connecting'));
     expect(store.hasRemote).toBe(true);
   });
 });
