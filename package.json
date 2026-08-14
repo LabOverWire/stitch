@@ -1,6 +1,6 @@
 {
   "name": "@laboverwire/stitch",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Reactive state synchronization library bridging an in-memory store, IndexedDB persistence, and MQTT-based remote sync.",
   "license": "Apache-2.0",
   "author": "LabOverWire",
