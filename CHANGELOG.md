@@ -6,6 +6,16 @@
 
 - _Nothing yet._
 
+## 0.6.0
+
+### Added
+
+- **`RemoteConfig.autoConnect`** (`boolean`, default `true`). When `false`, `initialize()` skips the startup broker connect and the caller drives it via `reconnect(url, ticket)` — the pattern for dynamically-minted-per-connection JWTs, avoiding the ticketless startup probe that an auth-requiring broker rejects once per page load. The adapter already forwards options verbatim, so this only makes the field type-safe for consumers.
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.3.0`, which implements `remote.autoConnect`. Default `true` preserves existing behavior, so this is additive and non-breaking.
+
 ## 0.5.1
 
 ### Changed
