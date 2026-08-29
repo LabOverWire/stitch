@@ -40,6 +40,24 @@ describe('smoke: core store operations', () => {
     store.destroy();
   });
 
+  it('create generates a fresh id when none supplied and honors an explicit id', async () => {
+    const store = createStore(projectTaskConfig());
+    await store.initialize();
+
+    const generatedId = await store.create('project', '', { name: 'P1' });
+    expect(generatedId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    expect(store.read('project', generatedId)).toMatchObject({ id: generatedId, name: 'P1' });
+
+    const suppliedId = 'project-fixed-id';
+    const returnedId = await store.create('project', '', { id: suppliedId, name: 'P2' });
+    expect(returnedId).toBe(suppliedId);
+    expect(store.read('project', suppliedId)).toMatchObject({ id: suppliedId, name: 'P2' });
+
+    store.destroy();
+  });
+
   it('persistent store survives destroy + rehydrate', async () => {
     const dbName = uniqueDbName();
     const config = projectTaskConfig();
