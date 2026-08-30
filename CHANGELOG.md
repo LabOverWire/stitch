@@ -6,6 +6,16 @@
 
 - _Nothing yet._
 
+## 0.6.1
+
+### Fixed
+
+- **`create()` now rejects and rolls back the optimistic local row when the broker refuses an online insert.** On a live connection, a broker `Conflict` (409) or `Ownership` (403) response previously swallowed the error and resolved `create()` with an id, leaving a phantom local row. As of `@laboverwire/stitch-wasm` 0.4.0 the optimistic write is rolled back (memory + persistence + offline queue) and the promise rejects, carrying the stringified error (`conflict for <entity>/<id>` / `ownership denied for <entity>/<id>`). This makes `create()` usable for exclusive-key claims that must distinguish a win from a loss. Behavior change: code that treats `create()` as infallible should add a `.catch`.
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.4.0`, which implements the create-conflict rollback above. Additive to the wrapper's own API; no `@laboverwire/stitch` type or signature changes. The create binding the adapter calls is unchanged (`create(entity, scopeId, data, tag?) => Promise<string>`); only its rejection behavior on a live-connection 409/403 differs. A create without an `id` still returns a fresh UUID.
+
 ## 0.6.0
 
 ### Added
