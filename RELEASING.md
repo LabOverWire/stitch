@@ -29,28 +29,27 @@
    ```
    This edits `package.json`, creates a commit titled `X.Y.Z`, and creates a `vX.Y.Z` tag pointing at that commit.
 
-5. **Publish the tag:**
+5. **Push the tag:**
    ```bash
    git push --follow-tags
    ```
    The push of `vX.Y.Z` triggers `.github/workflows/release.yml`, which:
    - Verifies the tag matches `package.json` `version`
    - Runs `npm run check` and `npm run build`
-   - Runs `npm publish --access public --provenance` (auth via `NPM_TOKEN` repo secret)
    - Creates a GitHub Release whose body is the matching `## X.Y.Z` section of `CHANGELOG.md` (extracted via `scripts/extract-changelog.mjs`)
 
    Watch the run under [Actions](https://github.com/LabOverWire/stitch/actions). If it fails, fix the issue, push a new commit on `main`, delete the bad tag locally and on the remote, then redo the tag step.
 
-### Local fallback
+   The workflow does **not** publish to npm — that step is manual (see below), because npm tokens are too short-lived to keep a `NPM_TOKEN` secret valid unattended.
 
-If the workflow is unavailable (e.g. token rotation), publish manually from a clean checkout of the tag:
-
-```bash
-git checkout vX.Y.Z
-npm publish --access public
-```
-
-`prepublishOnly` reruns `clean` + `check` + `build`, so the published tarball always contains a fresh `dist/` regardless of the working tree. `--access public` is required on first publish of a scoped package; subsequent publishes can drop it.
+6. **Publish to npm** from a clean checkout of the tag:
+   ```bash
+   npm login
+   git checkout vX.Y.Z
+   npm publish --access public
+   git checkout main
+   ```
+   `prepublishOnly` reruns `clean` + `check` + `build`, so the published tarball always contains a fresh `dist/` regardless of the working tree. `--access public` is required on first publish of a scoped package; subsequent publishes can drop it.
 
 ## Bump conventions
 
