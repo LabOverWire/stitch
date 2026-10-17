@@ -36,20 +36,27 @@
    The push of `vX.Y.Z` triggers `.github/workflows/release.yml`, which:
    - Verifies the tag matches `package.json` `version`
    - Runs `npm run check` and `npm run build`
+   - Runs `npm publish --access public --provenance`
    - Creates a GitHub Release whose body is the matching `## X.Y.Z` section of `CHANGELOG.md` (extracted via `scripts/extract-changelog.mjs`)
 
    Watch the run under [Actions](https://github.com/LabOverWire/stitch/actions). If it fails, fix the issue, push a new commit on `main`, delete the bad tag locally and on the remote, then redo the tag step.
 
-   The workflow does **not** publish to npm — that step is manual (see below), because npm tokens are too short-lived to keep a `NPM_TOKEN` secret valid unattended.
+### How publishing authenticates
 
-6. **Publish to npm** from a clean checkout of the tag:
-   ```bash
-   npm login
-   git checkout vX.Y.Z
-   npm publish --access public
-   git checkout main
-   ```
-   `prepublishOnly` reruns `clean` + `check` + `build`, so the published tarball always contains a fresh `dist/` regardless of the working tree. `--access public` is required on first publish of a scoped package; subsequent publishes can drop it.
+The workflow publishes over **npm trusted publishing (OIDC)** — no `NPM_TOKEN` secret. The `id-token: write` permission lets the runner mint a short-lived OIDC token that npm exchanges for a scoped, one-shot publish credential, and provenance is attached automatically. npm trusts it because the package is configured with a trusted publisher (npmjs.com → the package → Settings → Trusted publishing) bound to this repo and the `release.yml` workflow, with the `npm publish` action allowed.
+
+There is nothing to rotate. If the trust is ever lost (publisher connection deleted, or publishing from a different workflow), reconfigure it on npmjs.com rather than reintroducing a token. A newly created trusted-publisher connection must complete its first publish within 2 days or it expires.
+
+### Local fallback
+
+Publishing from a laptop still works but requires a 2FA one-time password, since OIDC only applies in CI:
+```bash
+npm login
+git checkout vX.Y.Z
+npm publish --access public --otp=<code>
+git checkout main
+```
+`prepublishOnly` reruns `clean` + `check` + `build`, so the published tarball always contains a fresh `dist/` regardless of the working tree.
 
 ## Bump conventions
 
