@@ -24,6 +24,7 @@
     "vite-plugin-wasm": "^3.6.0"
   },
   "overrides": {
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "source-map-js": "^1.2.2"
   }
 }
