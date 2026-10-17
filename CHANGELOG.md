@@ -6,6 +6,12 @@
 
 - _Nothing yet._
 
+## 0.6.2
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.5.0`. The engine's 0.4 → 0.5 is a breaking minor, but the wrapper's binding contract is unchanged — identical wasm type surface and identical public bindings — so there are no `@laboverwire/stitch` type or signature changes. This is a currency bump: `^0.4.0` cannot resolve `stitch-wasm@0.5.0` (a 0.x minor is a breaking bump), which left consumers pinned below the latest engine. It is **not** a fix — it does not resolve the `time not implemented on this platform` wasm panic (tracked separately against MQDB).
+
 ## 0.6.1
 
 ### Fixed
