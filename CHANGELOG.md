@@ -6,6 +6,16 @@
 
 - _Nothing yet._
 
+## 0.6.3
+
+### Fixed
+
+- **Resolved the `time not implemented on this platform` wasm panic** that fired on the first child `create()` in the browser and then failed every subsequent store call. The bug was in `stitch-rs` (fixed in stitch-rs #44) and shipped as `@laboverwire/stitch-wasm` 0.5.1; this release delivers it to consumers by raising the floor below. This is the panic the 0.6.2 entry noted as **not yet fixed** and tracked against MQDB.
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.5.1`. `^0.5.0` already resolves 0.5.1 on a fresh install, but raising the floor guarantees the fix above is present rather than leaving it to resolution order. 0.5.1 is API-identical to 0.5.0, so there are no `@laboverwire/stitch` type or signature changes. The 0.4 → 0.5 engine change that switched failed `Store` methods from rejecting with a plain string to a structured `Error` (`message` + `kind`) does not affect this wrapper: the adapter forwards rejections untouched and never matches on error strings, so callers receive whatever shape the engine emits.
+
 ## 0.6.2
 
 ### Changed
