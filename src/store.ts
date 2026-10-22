@@ -204,6 +204,19 @@ class StitchStore<S extends EntitySchema = DefaultSchema> implements Store<S> {
     return this.#afterReady(() => this.#inner.delete(entity, id, tag ?? undefined));
   }
 
+  updateIf<K extends EntityKey<S>>(
+    entity: K,
+    id: string,
+    fields: Partial<S[K]>,
+    expectedVersion: number
+  ): Promise<number> {
+    return this.#afterReady(() => this.#inner.updateIf(entity, id, fields, expectedVersion));
+  }
+
+  deleteIf<K extends EntityKey<S>>(entity: K, id: string, expectedVersion: number): Promise<void> {
+    return this.#afterReady(() => this.#inner.deleteIf(entity, id, expectedVersion));
+  }
+
   subscribeToScope<K extends EntityKey<S>>(
     scopeId: string,
     entity: K,

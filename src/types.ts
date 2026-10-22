@@ -124,6 +124,13 @@ export interface Store<S extends EntitySchema = DefaultSchema> {
     tag?: OriginTag
   ): Promise<void>;
   delete<K extends EntityKey<S>>(entity: K, id: string, tag?: OriginTag): Promise<void>;
+  updateIf<K extends EntityKey<S>>(
+    entity: K,
+    id: string,
+    fields: Partial<S[K]>,
+    expectedVersion: number
+  ): Promise<number>;
+  deleteIf<K extends EntityKey<S>>(entity: K, id: string, expectedVersion: number): Promise<void>;
 
   subscribeToScope<K extends EntityKey<S>>(
     scopeId: string,
