@@ -6,6 +6,17 @@
 
 - _Nothing yet._
 
+## 0.6.4
+
+### Fixed
+
+- **`subscribeToConnectionStatus` now delivers connection-status transitions.** The callback registered but never fired on any connectivity change — the synchronous `connectionStatus` getter stayed correct, but the push channel was dead, so React/Vue connection indicators showed a permanently stale status. The root cause was in the engine: `@laboverwire/stitch-wasm` 0.5.1 did not fan the MQTT client's connectivity events out to the wasm `Store`'s status subscribers. Fixed upstream in stitch-rs #65 and shipped as `@laboverwire/stitch-wasm` 0.6.0; this release delivers it to consumers by raising the floor below. Tracked as #48.
+- **Deferred subscriptions now emit an initial value when attached to an already-ready store.** `deferrableSubscribe` poked consumers to re-read only on the pre-init path; a subscription attached after `initialize()` had resolved got no initial callback, so a direct `subscribeToConnectionStatus` consumer stayed at its default until the next transition. The ready path now pokes once on attach, matching the pre-init path — `useSyncExternalStore`-style consumers get a current read immediately and a connection indicator reflects the live status on mount instead of waiting for the next change.
+
+### Changed
+
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.6.0`, which delivers the connection-status forwarding fix above. The 0.5 → 0.6 engine step is additive to the `Store` surface this adapter consumes — two new compare-and-set methods (`updateIf`, `deleteIf`) the wrapper does not expose — with no removed or changed signatures, so there are no `@laboverwire/stitch` type or signature changes. `subscribeToConnectionStatus` and `connectionStatus` keep their exact shapes; only the engine's runtime delivery behind them changed.
+
 ## 0.6.3
 
 ### Fixed
