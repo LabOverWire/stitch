@@ -36,19 +36,17 @@ function cacheKey(scopeId: string, entity: string): string {
   return `${scopeId} ${entity}`;
 }
 
-/**
- * Wire a subscription now if the store is ready, otherwise defer wiring until
- * `whenReady` resolves. Returns an unsubscribe that cancels the pending wire or
- * the live subscription, whichever exists. `poke` fires once the deferred
- * subscription attaches so `useSyncExternalStore`-style consumers re-read.
- */
 function deferrableSubscribe(
   isReady: () => boolean,
   whenReady: () => Promise<void>,
   subscribeNow: () => () => void,
   poke: () => void
 ): () => void {
-  if (isReady()) return subscribeNow();
+  if (isReady()) {
+    const live = subscribeNow();
+    poke();
+    return live;
+  }
   let live: (() => void) | null = null;
   let cancelled = false;
   void whenReady().then(() => {
