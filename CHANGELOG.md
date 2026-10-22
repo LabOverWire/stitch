@@ -6,6 +6,12 @@
 
 - _Nothing yet._
 
+## 0.6.5
+
+### Added
+
+- **`updateIf` / `deleteIf` — version-fenced compare-and-set writes.** `updateIf(entity, id, fields, expectedVersion): Promise<number>` applies `fields` only if the row's server version still equals `expectedVersion`, resolving with the new version; `deleteIf(entity, id, expectedVersion): Promise<void>` removes the row under the same fence. Both are **remote-first / online-only** — sent to the broker first, never optimistically queued, applied locally only on success — so they reject when there is no connected remote rather than queuing the write for later. A stale-version failure surfaces as the engine's terminal `err.kind = 'preconditionFailed'` (distinct from the retryable `conflict`); the adapter forwards the rejection untouched, so callers read `err.kind` directly. These surface the `@laboverwire/stitch-wasm` 0.6.0 CAS methods (from stitch-rs #47) that the 0.6.4 floor bump already made available, so no new engine floor is needed. Closes #57.
+
 ## 0.6.4
 
 ### Fixed
