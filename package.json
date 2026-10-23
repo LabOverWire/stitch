@@ -9,7 +9,7 @@
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "repository": {
     "type": "git",
@@ -92,9 +92,9 @@
     "@eslint/js": "^10.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
-    "@vitest/browser": "^4.1.11",
-    "@vitest/browser-playwright": "^4.1.11",
-    "@vitest/ui": "^4.1.11",
+    "@vitest/browser": "^5.0.5",
+    "@vitest/browser-playwright": "^5.0.5",
+    "@vitest/ui": "^5.0.5",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
@@ -109,9 +109,10 @@
     "rollup": "^4.62.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0",
+    "vite": "^8.3.5",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.5",
     "vue": "^3.5.42"
   },
   "overrides": {

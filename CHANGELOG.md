@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-### Added
+### Changed
 
-- _Nothing yet._
+- **Raised the minimum Node version to `>=22.12` (dropped Node 20).** `engines.node` moves from `>=20` to `>=22.12`; installing on Node 20 (EOL April 2026) or Node 22.0–22.11 now emits an `EBADENGINE` warning, a hard failure under `engine-strict` or pnpm. The driver was raising the dev/test toolchain to vitest 5, whose own floor is Node `^22.12.0 || ^24 || >=26`; CI now runs Node 22 and 24 instead of 20 and 22. No `@laboverwire/stitch` runtime or type surface changed.
 
 ## 0.6.5
 
