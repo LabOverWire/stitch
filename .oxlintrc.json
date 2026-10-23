@@ -27,7 +27,7 @@
   "overrides": [
     {
       "files": ["src/react/**/*.{ts,tsx}"],
-      "plugins": ["react"],
+      "plugins": ["typescript", "oxc", "react"],
       "rules": {
         "react-hooks/rules-of-hooks": "error",
         "react-hooks/exhaustive-deps": "warn"
