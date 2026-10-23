@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 0.7.0
+
 ### Changed
 
 - **Raised the minimum Node version to `>=22.22.1` (dropped Node 20).** `engines.node` moves from `>=20` to `>=22.22.1`; installing on Node 20 (EOL April 2026) or any Node below 22.22.1 now emits an `EBADENGINE` warning, a hard failure under `engine-strict` or pnpm. Two dev-toolchain upgrades drove the floor: vitest 5 (floor Node `^22.12.0 || ^24 || >=26`) and lint-staged 17 (floor Node `>=22.22.1`, the binding constraint); the pre-commit pipeline is unchanged (`prettier --write` then `oxlint --fix` on staged `src` files). CI now runs Node 22 and 24 instead of 20 and 22. No `@laboverwire/stitch` runtime or type surface changed.
