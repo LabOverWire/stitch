@@ -18,6 +18,14 @@ const nextSectionIdx = lines.findIndex(
   (l, i) => i > unreleasedIdx && /^##\s+/.test(l)
 );
 const body = lines.slice(unreleasedIdx + 1, nextSectionIdx === -1 ? undefined : nextSectionIdx);
+
+if (body.some((l) => /_nothing yet\._/i.test(l))) {
+  console.error(
+    'CHANGELOG.md: "## Unreleased" still holds the "_Nothing yet._" placeholder. Replace it with at least one "### Added/Changed/Fixed/Removed" subsection and a bullet before cutting a release.'
+  );
+  process.exit(1);
+}
+
 const hasContent = body.some((l) => /^###\s+/.test(l)) && body.some((l) => l.trim().startsWith('-'));
 
 if (!hasContent) {
