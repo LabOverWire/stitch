@@ -39,8 +39,8 @@
   ],
   "scripts": {
     "type-check": "tsc --noEmit",
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix .",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
     "test": "vitest run",
@@ -56,7 +56,7 @@
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "prettier --write",
-      "eslint --fix"
+      "oxlint --fix"
     ]
   },
   "exports": {
@@ -89,26 +89,21 @@
     }
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
     "@vitest/browser": "^5.0.5",
     "@vitest/browser-playwright": "^5.0.5",
     "@vitest/ui": "^5.0.5",
     "esbuild": "^0.28.1",
-    "eslint": "^10.8.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "oxlint": "^1.89.0",
     "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "rollup": "^4.62.4",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.66.0",
+    "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
