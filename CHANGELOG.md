@@ -2,13 +2,17 @@
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 0.7.1
+
 ### Fixed
 
-- **A scope opened before the remote connected no longer stays empty until a page reload.** When `replaceScope` ran during connection warmup — before the transport reached `connected` — the engine rebuilt the scope empty and never backfilled it once connected, so a consumer that opened a scoped route on a cold load saw zero entities indefinitely and only a full reload recovered it. Fixed in the engine (stitch-rs #85, closing stitch-rs#81) and shipped as `@laboverwire/stitch-wasm` 0.6.1: on connect the store now re-opens the current scope against the server and reconciles its root and children, emitting the scope-load notification that drives the scoped read hooks (`useScopedEntities`, `useEntitySnapshot`, and their Vue equivalents) to converge with no reload. The React `useSyncScope` latch — which never re-opens a scope after the first successful open — was investigated as the wrapper-side half and needs no change: the backfilled rows reach consumers through the entity/scope subscription the scoped hooks already hold, independently of the open latch. The engine-side backfill is regression-tested upstream in stitch-rs (`wire::scope_opened_before_connect_backfills_on_connect`, a real-broker test); this repo adds no wrapper test, as the connect-backfill path cannot be exercised without a broker harness. Resolves #67.
+- **A scope opened by a second viewer no longer comes up empty on a cold load.** A viewer that opened a scope it did not create — via `replaceScope` while the transport was already `connected` — received the scope's children only intermittently (roughly 40% of cold opens stayed empty until a full page reload). The root cause was engine-side and wasm-specific: `replace_scope`'s server-open branch, which fetches the scope's root and children from the broker, was compiled out on `wasm32`, so a connected `replaceScope` in the browser only read local persistence — empty for a viewer with nothing cached — while the sole wasm server-open path (backfill-on-connect, added in 0.6.1) raced the open and usually no-opped. Fixed in the engine (stitch-rs#92, closing stitch-rs#91) and shipped as `@laboverwire/stitch-wasm` 0.6.2: the connected server-open branch now runs on all targets, so a connected `replaceScope` reconciles the scope's root and children itself and the scoped read hooks (`useScopedEntities`, `useEntitySnapshot`, and their Vue equivalents) converge with no reload. Regression-tested upstream (`connected_replace_scope_delivers_children_to_a_second_viewer`, native broker, plus a broker-gated wasm test); this repo adds no wrapper test, as the path cannot be exercised without a live broker. This supersedes the partial 0.6.1 improvement (stitch-rs#85) and resolves the empty-scope symptom tracked in this repo as #67; the React `useSyncScope` latch was ruled out as the cause and is unchanged.
 
 ### Changed
 
-- Raised the `@laboverwire/stitch-wasm` floor to `^0.6.1`, which delivers the scope backfill above. `^0.6.0` already resolves 0.6.1 on a fresh install, but raising the floor guarantees the fix is present rather than leaving it to resolution order. 0.6.1 is a patch over 0.6.0 and additive to the `Store` surface this adapter consumes, so there are no `@laboverwire/stitch` type or signature changes.
+- Raised the `@laboverwire/stitch-wasm` floor to `^0.6.2`, which delivers the connected-open fix above. 0.6.2 is a patch over 0.6.0/0.6.1 and additive to the `Store` surface this adapter consumes, so there are no `@laboverwire/stitch` type or signature changes.
 
 ## 0.7.0
 
