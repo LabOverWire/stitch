@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 0.7.1
+
 ### Fixed
 
 - **A scope opened before the remote connected no longer stays empty until a page reload.** When `replaceScope` ran during connection warmup — before the transport reached `connected` — the engine rebuilt the scope empty and never backfilled it once connected, so a consumer that opened a scoped route on a cold load saw zero entities indefinitely and only a full reload recovered it. Fixed in the engine (stitch-rs #85, closing stitch-rs#81) and shipped as `@laboverwire/stitch-wasm` 0.6.1: on connect the store now re-opens the current scope against the server and reconciles its root and children, emitting the scope-load notification that drives the scoped read hooks (`useScopedEntities`, `useEntitySnapshot`, and their Vue equivalents) to converge with no reload. The React `useSyncScope` latch — which never re-opens a scope after the first successful open — was investigated as the wrapper-side half and needs no change: the backfilled rows reach consumers through the entity/scope subscription the scoped hooks already hold, independently of the open latch. The engine-side backfill is regression-tested upstream in stitch-rs (`wire::scope_opened_before_connect_backfills_on_connect`, a real-broker test); this repo adds no wrapper test, as the connect-backfill path cannot be exercised without a broker harness. Resolves #67.
